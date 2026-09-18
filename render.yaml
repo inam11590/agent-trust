@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: agenttrust-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 
+    envVars:
+      - key: APP_ENV
+        value: development
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        value: aT8zQSb6CXoUBznUt0Op4NZOh5Xnb8160Fhmr5orc6A=
+      - key: WEBHOOK_SIGNING_KEY
+        generateValue: true
+      - key: WEB_APP_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
