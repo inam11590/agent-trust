@@ -29,6 +29,8 @@ from app.api.organizations import router as organizations_router
 from app.api.notifications import router as notifications_router
 from app.api.risk import router as risk_router
 from app.api.billing import router as billing_router
+from app.api.cross_organization_trust import router as cross_org_trust_router, profile_router as cross_org_profile_router
+from app.api.cross_org_requests import router as cross_org_requests_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -91,6 +93,9 @@ def create_app() -> FastAPI:
     application.include_router(agent_signing_router)
     application.include_router(permissions_router)
     application.include_router(agent_delegations_router)
+    application.include_router(cross_org_trust_router)
+    application.include_router(cross_org_profile_router)
+    application.include_router(cross_org_requests_router)
     application.include_router(authorization_router)
     application.include_router(authorization_requests_router)
     application.include_router(developer_management_router)

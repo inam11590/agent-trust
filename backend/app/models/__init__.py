@@ -45,6 +45,20 @@ from app.models.billing import (
     SubscriptionPlan, SubscriptionStatus, UsageMetric, UsageRecord,
 )
 
+from app.models.cross_organization_trust import (
+    ApprovalStage,
+    ApprovalStatus,
+    CrossOrgRequestStatus,
+    CrossOrganizationApproval,
+    CrossOrganizationRequest,
+    ExternalAgentConnection,
+    OrganizationPublicProfile,
+    OrganizationTrustPolicy,
+    OrganizationTrustRelationship,
+    TargetOrganizationPolicy,
+    TrustStatus,
+)
+
 __all__ = [
     "Agent",
     "AgentStatus",
@@ -79,4 +93,8 @@ __all__ = [
     "RiskAction", "RiskAssessment", "RiskLevel", "RiskPolicy",
     "BillingCheckout", "BillingEvent", "BillingEventStatus", "OrganizationSubscription",
     "SubscriptionPlan", "SubscriptionStatus", "UsageMetric", "UsageRecord",
+    "OrganizationTrustRelationship", "TrustStatus", "OrganizationTrustPolicy",
+    "OrganizationPublicProfile", "TargetOrganizationPolicy", "ExternalAgentConnection",
+    "CrossOrganizationRequest", "CrossOrgRequestStatus", "CrossOrganizationApproval",
+    "ApprovalStage", "ApprovalStatus",
 ]

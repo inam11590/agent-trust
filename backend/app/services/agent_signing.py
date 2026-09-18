@@ -25,6 +25,7 @@ KEY_ID_PATTERN = re.compile(r"^key_ag_[0-9a-f]{24}$")
 NONCE_PATTERN = re.compile(r"^nonce_[0-9a-f]{32}$")
 TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 SIGNATURE_VERSION = "v1"
+SIGNATURE_VERSION_V2 = "v2"
 SIGNATURE_PATH = "/api/v1/authorize"
 SIGNED_HEADERS = (
     "X-Agent-ID", "X-Agent-Key-ID", "X-Agent-Timestamp", "X-Agent-Nonce",
@@ -50,6 +51,34 @@ def canonical_request(method: str, path: str, agent_id: str, key_id: str,
     """ASCII metadata plus SHA-256 of exact HTTP entity bytes, with a final LF."""
     return ("\n".join((SIGNATURE_VERSION, method.upper(), path, agent_id, key_id,
                        timestamp, nonce, hashlib.sha256(body).hexdigest())) + "\n").encode("ascii")
+
+
+def canonical_cross_org_request_v2(
+    method: str,
+    path: str,
+    source_org_id: str,
+    target_org_id: str,
+    source_agent_id: str,
+    target_agent_id: str,
+    key_id: str,
+    timestamp: str,
+    nonce: str,
+    body: bytes,
+) -> bytes:
+    """ASCII metadata binding source/target org & agent with body SHA-256 for Step 20 v2 signing."""
+    return ("\n".join((
+        SIGNATURE_VERSION_V2,
+        method.upper(),
+        path,
+        str(source_org_id),
+        str(target_org_id),
+        str(source_agent_id),
+        str(target_agent_id),
+        key_id,
+        timestamp,
+        nonce,
+        hashlib.sha256(body).hexdigest(),
+    )) + "\n").encode("ascii")
 
 
 def decode_public_key(value: str) -> bytes:
@@ -223,3 +252,74 @@ def verify_request(db: Session, principal: DeveloperPrincipal, settings: Setting
     key.last_used_at = now
     db.commit()
     return VerifiedAgentSignature(key_id=key_id)
+
+
+def verify_cross_org_request_v2(
+    db: Session,
+    settings: Settings,
+    redis_client,
+    *,
+    source_agent: Agent,
+    target_agent: Agent,
+    source_org_id: UUID | str,
+    target_org_id: UUID | str,
+    headers: dict,
+    body: bytes,
+    method: str = "POST",
+    path: str = "/api/v1/cross-org/authorize",
+) -> VerifiedAgentSignature:
+    """Verify v2 cross-org signature binding source/target orgs and agents."""
+    values = [headers.get(name) for name in SIGNED_HEADERS]
+    if any(value is None or len(value) > 200 for value in values):
+        raise SigningError("AGENT_SIGNATURE_REQUIRED")
+    header_agent, key_id, timestamp, nonce, signature, version = values
+    if version != SIGNATURE_VERSION_V2:
+        raise SigningError("UNKNOWN_AGENT_SIGNATURE_VERSION")
+    if (
+        header_agent != source_agent.agent_identifier
+        or not KEY_ID_PATTERN.fullmatch(key_id)
+        or not NONCE_PATTERN.fullmatch(nonce)
+    ):
+        raise SigningError("INVALID_AGENT_SIGNATURE")
+    if not TIMESTAMP_PATTERN.fullmatch(timestamp):
+        raise SigningError("REQUEST_TIMESTAMP_INVALID")
+    try:
+        signed_at = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise SigningError("REQUEST_TIMESTAMP_INVALID") from None
+    now = datetime.now(timezone.utc)
+    if abs((now - signed_at).total_seconds()) > settings.agent_signature_clock_window_seconds:
+        raise SigningError("REQUEST_TIMESTAMP_INVALID")
+    key = db.scalar(select(AgentSigningKey).where(AgentSigningKey.key_id == key_id))
+    if key is None or key.agent_id != source_agent.id or key.organization_id != source_agent.organization_id:
+        raise SigningError("INVALID_AGENT_SIGNATURE")
+    if key.status == AgentSigningKeyStatus.REVOKED:
+        raise SigningError("SIGNING_KEY_REVOKED")
+    if key.status == AgentSigningKeyStatus.EXPIRED or (key.expires_at is not None and key.expires_at <= now):
+        raise SigningError("SIGNING_KEY_EXPIRED")
+    if key.status not in {AgentSigningKeyStatus.ACTIVE, AgentSigningKeyStatus.ROTATING} or key.algorithm != "Ed25519":
+        raise SigningError("INVALID_AGENT_SIGNATURE")
+    try:
+        signature_bytes = base64.b64decode(signature, validate=True)
+        if len(signature_bytes) != 64:
+            raise ValueError
+        public_bytes = base64.b64decode(key.public_key, validate=True)
+        canonical = canonical_cross_org_request_v2(
+            method=method,
+            path=path,
+            source_org_id=str(source_org_id),
+            target_org_id=str(target_org_id),
+            source_agent_id=str(source_agent.agent_identifier),
+            target_agent_id=str(target_agent.agent_identifier),
+            key_id=key_id,
+            timestamp=timestamp,
+            nonce=nonce,
+            body=body,
+        )
+        Ed25519PublicKey.from_public_bytes(public_bytes).verify(signature_bytes, canonical)
+    except (InvalidSignature, ValueError, binascii.Error):
+        raise SigningError("INVALID_AGENT_SIGNATURE") from None
+    _accept_nonce(db, redis_client, settings, key_id, nonce, now)
+    key.last_used_at = now
+    db.commit()
+    return VerifiedAgentSignature(key_id=key_id, version=SIGNATURE_VERSION_V2)
