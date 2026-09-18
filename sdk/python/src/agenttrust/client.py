@@ -23,6 +23,14 @@ class AuthorizationResult:
     reason: str
 
 
+@dataclass(frozen=True)
+class CrossOrgAuthorizationResult:
+    request_id: str
+    status: str
+    reason: str
+    pending_approvals: list[str]
+
+
 class AgentTrust:
     def __init__(self, api_key: str, base_url: str = "https://api.agenttrust.example", timeout: float = 10.0):
         if not api_key or not (api_key.startswith("at_live_") or api_key.startswith("at_test_")):
@@ -70,6 +78,124 @@ class AgentTrust:
             body["delegation_id"] = delegation_id
         headers = {"Idempotency-Key": idempotency_key} if idempotency_key else None
         return self._result(self._request("POST", "/api/v1/authorize", body, headers, signer=signer))
+
+    def authorize_cross_org(
+        self,
+        *,
+        source_agent_id: str,
+        target_org_id: str,
+        target_agent_id: str,
+        action: str,
+        resource: str,
+        amount: int | float | Decimal | None = None,
+        currency: str | None = None,
+        delegation_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        signer: AgentSigner | None = None,
+        source_org_id: str | None = None,
+    ) -> CrossOrgAuthorizationResult:
+        if not source_agent_id or not target_org_id or not target_agent_id or not action or not resource:
+            raise ValueError("source_agent_id, target_org_id, target_agent_id, action, and resource are required")
+        if (amount is None) != (currency is None):
+            raise ValueError("amount and currency must be provided together")
+        if amount is not None and Decimal(str(amount)) < 0:
+            raise ValueError("amount cannot be negative")
+        body: dict[str, Any] = {
+            "source_agent_id": source_agent_id,
+            "target_org_id": target_org_id,
+            "target_agent_id": target_agent_id,
+            "action": action,
+            "resource": resource,
+        }
+        if amount is not None:
+            body.update(amount=float(amount), currency=currency)
+        if delegation_id is not None:
+            body["delegation_id"] = delegation_id
+        if context is not None:
+            body["context"] = context
+        headers = {"Idempotency-Key": idempotency_key} if idempotency_key else {}
+        if signer is not None:
+            raw_body = json.dumps(body, separators=(",", ":")).encode("ascii")
+            headers.update(
+                signer.cross_org_headers(
+                    method="POST",
+                    path="/api/v1/cross-org/authorize",
+                    body=raw_body,
+                    source_org_id=source_org_id or "00000000-0000-0000-0000-000000000000",
+                    target_org_id=target_org_id,
+                    target_agent_id=target_agent_id,
+                )
+            )
+        res = self._request("POST", "/api/v1/cross-org/authorize", body, headers if headers else None)
+        return CrossOrgAuthorizationResult(
+            request_id=str(res.get("request_id", "")),
+            status=str(res.get("status", "")),
+            reason=str(res.get("reason", "")),
+            pending_approvals=list(res.get("pending_approvals") or []),
+        )
+
+    # Cross-Organization Trust Management
+    def list_trust(self, *, status: str | None = None, direction: str | None = None) -> list[dict[str, Any]]:
+        params = []
+        if status:
+            params.append(f"status={status}")
+        if direction:
+            params.append(f"direction={direction}")
+        query = f"?{'&'.join(params)}" if params else ""
+        return self._request("GET", f"/v1/organization-trust{query}")
+
+    def get_trust(self, trust_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/v1/organization-trust/{trust_id}")
+
+    def request_trust(self, *, target_org_id: str, proposed_policy: dict[str, Any], notes: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"target_organization_id": target_org_id, "proposed_policy": proposed_policy}
+        if notes:
+            payload["notes"] = notes
+        return self._request("POST", "/v1/organization-trust/request", payload)
+
+    def accept_trust(self, trust_id: str, agreed_policy: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = {"agreed_policy": agreed_policy} if agreed_policy else {}
+        return self._request("POST", f"/v1/organization-trust/{trust_id}/accept", payload)
+
+    def reject_trust(self, trust_id: str, reason: str = "Rejected by target organization") -> dict[str, Any]:
+        return self._request("POST", f"/v1/organization-trust/{trust_id}/reject", {"reason": reason})
+
+    def revoke_trust(self, trust_id: str, reason: str = "Revoked by organization") -> dict[str, Any]:
+        return self._request("POST", f"/v1/organization-trust/{trust_id}/revoke", {"reason": reason})
+
+    def search_profiles(self, *, query: str | None = None, tag: str | None = None) -> list[dict[str, Any]]:
+        params = []
+        if query:
+            params.append(f"q={query}")
+        if tag:
+            params.append(f"tag={tag}")
+        qs = f"?{'&'.join(params)}" if params else ""
+        return self._request("GET", f"/v1/organization-trust/directory{qs}")
+
+    def update_public_profile(self, org_id: str, profile: dict[str, Any]) -> dict[str, Any]:
+        return self._request("PUT", f"/v1/organizations/{org_id}/public-profile", profile)
+
+    def set_target_policy(self, org_id: str, target_org_id: str, policy: dict[str, Any]) -> dict[str, Any]:
+        return self._request("PUT", f"/v1/organizations/{org_id}/target-policy/{target_org_id}", policy)
+
+    def connect_external_agent(self, trust_id: str, *, external_agent_id: str, internal_agent_id: str, agreed_policy: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = {"external_agent_id": external_agent_id, "internal_agent_id": internal_agent_id}
+        if agreed_policy:
+            payload["agreed_policy"] = agreed_policy
+        return self._request("POST", f"/v1/organization-trust/{trust_id}/agents/connect", payload)
+
+    def list_external_agents(self, trust_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", f"/v1/organization-trust/{trust_id}/agents")
+
+    def get_cross_org_request(self, request_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/v1/cross-org/requests/{request_id}")
+
+    def decide_cross_org_approval(self, request_id: str, *, decision: str, reason: str | None = None) -> dict[str, Any]:
+        payload = {"decision": decision}
+        if reason:
+            payload["reason"] = reason
+        return self._request("POST", f"/v1/cross-org/requests/{request_id}/approve", payload)
 
     def create_delegation(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/v1/agent-delegations", payload)
@@ -146,6 +272,35 @@ class SignedAgent:
             resource=resource, amount=amount, currency=currency,
             delegation_id=delegation_id,
             idempotency_key=idempotency_key, signer=self._signer)
+
+    def authorize_external(
+        self,
+        *,
+        target_org_id: str,
+        target_agent_id: str,
+        action: str,
+        resource: str,
+        amount: int | float | Decimal | None = None,
+        currency: str | None = None,
+        delegation_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        source_org_id: str | None = None,
+    ) -> CrossOrgAuthorizationResult:
+        return self._client.authorize_cross_org(
+            source_agent_id=self._signer.agent_id,
+            target_org_id=target_org_id,
+            target_agent_id=target_agent_id,
+            action=action,
+            resource=resource,
+            amount=amount,
+            currency=currency,
+            delegation_id=delegation_id,
+            context=context,
+            idempotency_key=idempotency_key,
+            signer=self._signer,
+            source_org_id=source_org_id,
+        )
 
     def delegate(self, *, child_agent_id: str, parent_permission_id: str,
                  action: str, resource: str,

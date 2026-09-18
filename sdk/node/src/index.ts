@@ -1,8 +1,29 @@
 import { AgentSigner } from "./signing.js";
-export { AgentSigner, canonicalRequest } from "./signing.js";
+export { AgentSigner, canonicalRequest, canonicalCrossOrgRequestV2 } from "./signing.js";
 
 export interface AuthorizationInput { agentId: string; action: string; resource: string; amount?: number; currency?: string; delegationId?: string; idempotencyKey?: string }
 export interface AuthorizationResult { requestId: string; status: "APPROVED" | "REJECTED" | "PENDING" | "EXPIRED"; reason: string }
+
+export interface CrossOrgAuthorizeInput {
+  sourceAgentId: string;
+  targetOrgId: string;
+  targetAgentId: string;
+  action: string;
+  resource: string;
+  amount?: number;
+  currency?: string;
+  delegationId?: string;
+  context?: Record<string, unknown>;
+  idempotencyKey?: string;
+  sourceOrgId?: string;
+}
+
+export interface CrossOrgAuthorizeResult {
+  requestId: string;
+  status: "APPROVED" | "REJECTED" | "PENDING";
+  reason: string;
+  pendingApprovals?: string[];
+}
 
 export class AgentTrustError extends Error {
   constructor(message: string, public readonly status?: number) { super(message); this.name = "AgentTrustError"; }
@@ -82,6 +103,109 @@ export class AgentTrust {
     });
   }
 
+  async authorizeCrossOrg(input: CrossOrgAuthorizeInput, signer?: AgentSigner): Promise<CrossOrgAuthorizeResult> {
+    if (!input.sourceAgentId || !input.targetOrgId || !input.targetAgentId || !input.action || !input.resource) {
+      throw new Error("sourceAgentId, targetOrgId, targetAgentId, action, and resource are required");
+    }
+    if ((input.amount === undefined) !== (input.currency === undefined)) {
+      throw new Error("amount and currency must be provided together");
+    }
+    const payload: Record<string, unknown> = {
+      source_agent_id: input.sourceAgentId,
+      target_org_id: input.targetOrgId,
+      target_agent_id: input.targetAgentId,
+      action: input.action,
+      resource: input.resource,
+    };
+    if (input.amount !== undefined) {
+      payload.amount = input.amount;
+      payload.currency = input.currency;
+    }
+    if (input.delegationId) payload.delegation_id = input.delegationId;
+    if (input.context) payload.context = input.context;
+
+    const path = "/api/v1/cross-org/authorize";
+    const bodyStr = JSON.stringify(payload);
+    const headers: Record<string, string> = {};
+    if (input.idempotencyKey) headers["Idempotency-Key"] = input.idempotencyKey;
+
+    if (signer) {
+      const crossHeaders = signer.crossOrgHeaders(
+        "POST",
+        path,
+        Buffer.from(bodyStr, "utf8"),
+        input.sourceOrgId ?? "00000000-0000-0000-0000-000000000000",
+        input.targetOrgId,
+        input.targetAgentId
+      );
+      Object.assign(headers, crossHeaders);
+    }
+
+    const res = await this.rawRequest(path, {
+      method: "POST",
+      body: bodyStr,
+      headers,
+    });
+    return {
+      requestId: String(res.request_id),
+      status: res.status as CrossOrgAuthorizeResult["status"],
+      reason: String(res.reason),
+      pendingApprovals: res.pending_approvals as string[] | undefined,
+    };
+  }
+
+  async listTrust(options: { status?: string; direction?: string } = {}): Promise<Record<string, unknown>[]> {
+    const params = new URLSearchParams();
+    if (options.status) params.append("status", options.status);
+    if (options.direction) params.append("direction", options.direction);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return this.rawRequest(`/v1/organization-trust${qs}`);
+  }
+
+  async getTrust(trustId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/organization-trust/${encodeURIComponent(trustId)}`);
+  }
+
+  async requestTrust(payload: { targetOrganizationId: string; proposedPolicy: Record<string, unknown>; notes?: string }): Promise<Record<string, unknown>> {
+    return this.rawRequest("/v1/organization-trust/request", {
+      method: "POST",
+      body: JSON.stringify({
+        target_organization_id: payload.targetOrganizationId,
+        proposed_policy: payload.proposedPolicy,
+        notes: payload.notes,
+      }),
+    });
+  }
+
+  async acceptTrust(trustId: string, agreedPolicy?: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/organization-trust/${encodeURIComponent(trustId)}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ agreed_policy: agreedPolicy }),
+    });
+  }
+
+  async rejectTrust(trustId: string, reason = "Rejected by target organization"): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/organization-trust/${encodeURIComponent(trustId)}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async revokeTrust(trustId: string, reason = "Revoked by organization"): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/organization-trust/${encodeURIComponent(trustId)}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async searchProfiles(options: { query?: string; tag?: string } = {}): Promise<Record<string, unknown>[]> {
+    const params = new URLSearchParams();
+    if (options.query) params.append("q", options.query);
+    if (options.tag) params.append("tag", options.tag);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return this.rawRequest(`/v1/organization-trust/directory${qs}`);
+  }
+
   private async rawRequest(path: string, init: RequestInit = {}): Promise<any> {
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), this.timeout);
     try {
@@ -116,6 +240,9 @@ export class SignedAgent {
   get agentId(): string { return this.signer.agentId; }
   authorize(input: Omit<AuthorizationInput, "agentId">): Promise<AuthorizationResult> {
     return this.client.authorizeWithSigner({ ...input, agentId: this.signer.agentId }, this.signer);
+  }
+  authorizeExternal(input: Omit<CrossOrgAuthorizeInput, "sourceAgentId">): Promise<CrossOrgAuthorizeResult> {
+    return this.client.authorizeCrossOrg({ ...input, sourceAgentId: this.signer.agentId }, this.signer);
   }
   delegate(options: {
     childAgentId: string;

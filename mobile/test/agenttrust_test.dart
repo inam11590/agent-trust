@@ -8,6 +8,7 @@ import 'package:agenttrust/services/token_store.dart';
 import 'package:agenttrust/services/push_notifications.dart';
 import 'package:agenttrust/screens/request_detail_screen.dart';
 import 'package:agenttrust/models/billing.dart';
+import 'package:agenttrust/models/cross_org_request.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -535,5 +536,51 @@ void main() {
     expect(find.text('STARTER plan'), findsOneWidget);
     expect(find.text('420 of 20000 authorization requests used'), findsOneWidget);
     expect(find.text('Manage billing on the AgentTrust web dashboard.'), findsOneWidget);
+  });
+
+  test('34. cross-organization request model parses dual approvals', () {
+    final json = {
+      'id': 'xreq-uuid-1',
+      'request_id': 'xreq_abcdef1234567890abcdef',
+      'trust_relationship_id': 'trust-uuid-1',
+      'source_organization_id': 'org-src-1',
+      'target_organization_id': 'org-tgt-1',
+      'source_agent_id': 'agent-src-1',
+      'target_agent_id': 'agent-tgt-1',
+      'action': 'book_room',
+      'resource': 'hotel',
+      'amount': 250.0,
+      'currency': 'USD',
+      'status': 'PENDING',
+      'decision_reason': 'Awaiting multi-party approval',
+      'created_at': '2026-09-18T12:00:00Z',
+      'approvals': [
+        {
+          'id': 'appr-1',
+          'cross_org_request_id': 'xreq-uuid-1',
+          'organization_id': 'org-src-1',
+          'approval_stage': 'SOURCE',
+          'required_role': 'admin',
+          'status': 'APPROVED',
+        },
+        {
+          'id': 'appr-2',
+          'cross_org_request_id': 'xreq-uuid-1',
+          'organization_id': 'org-tgt-1',
+          'approval_stage': 'TARGET',
+          'required_role': 'admin',
+          'status': 'PENDING',
+        }
+      ]
+    };
+
+    final req = CrossOrganizationRequestSummary.fromJson(json);
+    expect(req.requestId, 'xreq_abcdef1234567890abcdef');
+    expect(req.status, 'PENDING');
+    expect(req.approvals.length, 2);
+    expect(req.approvals.first.approvalStage, 'SOURCE');
+    expect(req.approvals.first.status, 'APPROVED');
+    expect(req.approvals.last.approvalStage, 'TARGET');
+    expect(req.approvals.last.status, 'PENDING');
   });
 }

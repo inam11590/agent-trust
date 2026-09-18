@@ -287,6 +287,126 @@ def cmd_requests_get(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_trust_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        results = client.list_trust(status=getattr(args, "status", None), direction=getattr(args, "direction", None))
+        print(f"Trust Relationships ({len(results)} found):")
+        for t in results:
+            print(f"  ID: {t.get('id')} | Status: {t.get('status')} | Source: {t.get('source_organization_id')} -> Target: {t.get('target_organization_id')}")
+        return 0
+    except Exception as err:
+        print(f"Failed to list trust relationships: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        t = client.get_trust(args.trust_id)
+        print("Trust Relationship Details:")
+        for k, v in t.items():
+            print(f"  {k}: {v}")
+        return 0
+    except Exception as err:
+        print(f"Failed to fetch trust relationship: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_request(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        policy: dict[str, Any] = {}
+        if getattr(args, "max_amount", None):
+            policy["max_amount_per_request"] = args.max_amount
+            policy["currency"] = getattr(args, "currency", "USD") or "USD"
+        if getattr(args, "approval_stage", None):
+            policy["approval_stage"] = args.approval_stage
+        res = client.request_trust(target_org_id=args.target_org_id, proposed_policy=policy, notes=getattr(args, "notes", None))
+        print(f"Trust requested successfully. Trust ID: {res.get('id', 'N/A')} (Status: {res.get('status', 'PENDING')})")
+        return 0
+    except Exception as err:
+        print(f"Failed to request trust: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_accept(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.accept_trust(args.trust_id)
+        print(f"Trust relationship {args.trust_id} accepted. Status: {res.get('status', 'ACTIVE')}")
+        return 0
+    except Exception as err:
+        print(f"Failed to accept trust: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_reject(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.reject_trust(args.trust_id, reason=getattr(args, "reason", "Rejected via CLI") or "Rejected via CLI")
+        print(f"Trust relationship {args.trust_id} rejected. Status: {res.get('status', 'REJECTED')}")
+        return 0
+    except Exception as err:
+        print(f"Failed to reject trust: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_revoke(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.revoke_trust(args.trust_id, reason=getattr(args, "reason", "Revoked via CLI") or "Revoked via CLI")
+        print(f"Trust relationship {args.trust_id} revoked. Status: {res.get('status', 'REVOKED')}")
+        return 0
+    except Exception as err:
+        print(f"Failed to revoke trust: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_trust_directory(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        results = client.search_profiles(query=getattr(args, "query", None), tag=getattr(args, "tag", None))
+        print(f"Partner Directory ({len(results)} organizations):")
+        for p in results:
+            print(f"  Org ID: {p.get('organization_id')} | Name: {p.get('display_name')} | Verified: {p.get('is_verified')}")
+        return 0
+    except Exception as err:
+        print(f"Failed to query partner directory: {err}", file=sys.stderr)
+        return 1
+
+
+def cmd_external_authorize(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    signer = None
+    if getattr(args, "private_key_path", None) and getattr(args, "key_id", None):
+        signer = AgentSigner(args.source_agent_id, args.key_id, args.private_key_path)
+
+    try:
+        result = client.authorize_cross_org(
+            source_agent_id=args.source_agent_id,
+            target_org_id=args.target_org_id,
+            target_agent_id=args.target_agent_id,
+            action=args.action,
+            resource=args.resource,
+            amount=getattr(args, "amount", None),
+            currency=getattr(args, "currency", None),
+            idempotency_key=getattr(args, "idempotency_key", None),
+            signer=signer,
+            source_org_id=getattr(args, "source_org_id", None),
+        )
+        print("Cross-Organization Authorization Result:")
+        print(f"  Request ID:        {result.request_id}")
+        print(f"  Status:            {result.status}")
+        print(f"  Reason:            {result.reason}")
+        if result.pending_approvals:
+            print(f"  Pending Approvals: {', '.join(result.pending_approvals)}")
+        return 0 if result.status == "APPROVED" else 2
+    except Exception as err:
+        print(f"Cross-organization authorization failed: {err}", file=sys.stderr)
+        return 1
+
+
 def cmd_webhooks_test(args: argparse.Namespace) -> int:
     client = get_client(args)
     payload: dict[str, Any] = {}
@@ -585,6 +705,64 @@ def main(argv: list[str] | None = None) -> int:
     p_wt.add_argument("--url", help="Direct webhook destination URL")
     p_wt.add_argument("--endpoint-id", help="Existing webhook endpoint ID")
     p_wt.set_defaults(func=cmd_webhooks_test)
+
+    # trust (Step 20 cross-organization trust)
+    p_trust = subparsers.add_parser("trust", help="Manage cross-organization trust relationships", parents=[common])
+    sub_trust = p_trust.add_subparsers(dest="subcommand", required=True)
+
+    p_tl = sub_trust.add_parser("list", help="List organization trust relationships", parents=[common])
+    p_tl.add_argument("--status", choices=["pending", "active", "rejected", "revoked", "expired"], help="Filter by status")
+    p_tl.add_argument("--direction", choices=["incoming", "outgoing"], help="Filter by direction")
+    p_tl.set_defaults(func=cmd_trust_list)
+
+    p_tg = sub_trust.add_parser("get", help="Get trust relationship details", parents=[common])
+    p_tg.add_argument("trust_id", help="Trust relationship ID (trust_...)")
+    p_tg.set_defaults(func=cmd_trust_get)
+
+    p_trq = sub_trust.add_parser("request", help="Request cross-organization trust", parents=[common])
+    p_trq.add_argument("--target-org-id", required=True, help="Target Organization UUID")
+    p_trq.add_argument("--max-amount", type=float, help="Proposed max amount per request")
+    p_trq.add_argument("--currency", default="USD", help="Currency code")
+    p_trq.add_argument("--approval-stage", choices=["SOURCE", "TARGET", "BOTH"], default="BOTH", help="Approval stage required")
+    p_trq.add_argument("--notes", help="Invitation notes")
+    p_trq.set_defaults(func=cmd_trust_request)
+
+    p_tac = sub_trust.add_parser("accept", help="Accept incoming trust request", parents=[common])
+    p_tac.add_argument("trust_id", help="Trust relationship ID")
+    p_tac.set_defaults(func=cmd_trust_accept)
+
+    p_trj = sub_trust.add_parser("reject", help="Reject incoming trust request", parents=[common])
+    p_trj.add_argument("trust_id", help="Trust relationship ID")
+    p_trj.add_argument("--reason", help="Rejection reason")
+    p_trj.set_defaults(func=cmd_trust_reject)
+
+    p_trv = sub_trust.add_parser("revoke", help="Revoke active trust relationship", parents=[common])
+    p_trv.add_argument("trust_id", help="Trust relationship ID")
+    p_trv.add_argument("--reason", help="Revocation reason")
+    p_trv.set_defaults(func=cmd_trust_revoke)
+
+    p_td = sub_trust.add_parser("directory", help="Search partner organization directory", parents=[common])
+    p_td.add_argument("--query", help="Search query string")
+    p_td.add_argument("--tag", help="Search tag")
+    p_td.set_defaults(func=cmd_trust_directory)
+
+    # external (Step 20 cross-organization agent authorization)
+    p_ext = subparsers.add_parser("external", help="Authorize external cross-organization actions", parents=[common])
+    sub_ext = p_ext.add_subparsers(dest="subcommand", required=True)
+
+    p_ea = sub_ext.add_parser("authorize", help="Request cross-organization action authorization", parents=[common])
+    p_ea.add_argument("--source-agent-id", required=True, help="Source Agent UUID")
+    p_ea.add_argument("--target-org-id", required=True, help="Target Organization UUID")
+    p_ea.add_argument("--target-agent-id", required=True, help="Target Agent UUID")
+    p_ea.add_argument("--action", required=True, help="Action name")
+    p_ea.add_argument("--resource", required=True, help="Resource name")
+    p_ea.add_argument("--amount", type=float, help="Transaction amount")
+    p_ea.add_argument("--currency", help="Currency code")
+    p_ea.add_argument("--key-id", help="Source agent signing key ID")
+    p_ea.add_argument("--private-key-path", help="Path to Ed25519 private key PEM file for v2 local signing")
+    p_ea.add_argument("--idempotency-key", help="Unique idempotency key")
+    p_ea.add_argument("--source-org-id", help="Source Organization UUID")
+    p_ea.set_defaults(func=cmd_external_authorize)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

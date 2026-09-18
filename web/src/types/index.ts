@@ -248,3 +248,81 @@ export interface DelegationChainResponse {
   effective_expires_at: string;
   chain: DelegationChainNode[];
 }
+
+export type TrustStatus = "pending" | "active" | "rejected" | "revoked" | "expired";
+export type ApprovalStage = "SOURCE" | "TARGET" | "BOTH";
+export type CrossOrgRequestStatus = "APPROVED" | "REJECTED" | "PENDING";
+
+export interface OrganizationTrustPolicy {
+  allowed_actions?: string[];
+  allowed_resources?: string[];
+  max_amount_per_request?: number | null;
+  currency?: string | null;
+  daily_spend_limit?: number | null;
+  approval_stage?: ApprovalStage;
+  ip_allowlist?: string[];
+  custom_conditions?: Record<string, unknown>;
+}
+
+export interface OrganizationTrustRelationship {
+  id: string;
+  source_organization_id: string;
+  target_organization_id: string;
+  status: TrustStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  established_at: string | null;
+  revoked_at: string | null;
+  revoked_by_user_id: string | null;
+  revocation_reason: string | null;
+  expires_at: string | null;
+  source_policy?: OrganizationTrustPolicy;
+  target_policy?: OrganizationTrustPolicy;
+  agreed_policy?: OrganizationTrustPolicy;
+}
+
+export interface OrganizationPublicProfile {
+  id: string;
+  organization_id: string;
+  display_name: string;
+  description: string | null;
+  is_verified: boolean;
+  contact_email: string | null;
+  website_url: string | null;
+  capabilities: string[];
+  published_at: string;
+}
+
+export interface CrossOrganizationApproval {
+  id: string;
+  cross_org_request_id: string;
+  organization_id: string;
+  approval_stage: "SOURCE" | "TARGET";
+  required_role: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  decided_by_user_id: string | null;
+  decided_at: string | null;
+  reason: string | null;
+}
+
+export interface CrossOrganizationRequest {
+  id: string;
+  request_id: string;
+  trust_relationship_id: string;
+  connection_id: string | null;
+  source_organization_id: string;
+  target_organization_id: string;
+  source_agent_id: string;
+  target_agent_id: string;
+  action: string;
+  resource: string;
+  amount: number | null;
+  currency: string | null;
+  status: CrossOrgRequestStatus;
+  decision_reason: string | null;
+  created_at: string;
+  completed_at: string | null;
+  approvals?: CrossOrganizationApproval[];
+}
+
