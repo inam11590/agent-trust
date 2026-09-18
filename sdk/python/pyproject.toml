@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenttrust"
+version = "0.1.0"
+description = "AgentTrust developer API client"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=44,<48"]
+
+[project.scripts]
+agenttrust = "agenttrust.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

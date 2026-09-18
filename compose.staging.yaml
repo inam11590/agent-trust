@@ -1,0 +1,33 @@
+name: agenttrust-staging
+
+services:
+  db:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  migrate:
+    env_file:
+      - path: ./backend/.env.staging
+        required: false
+    environment:
+      APP_ENV: staging
+      WEB_APP_URL: ${STAGING_WEB_APP_URL:?Set STAGING_WEB_APP_URL}
+      CORS_ALLOWED_ORIGINS: ${STAGING_WEB_APP_URL:?Set STAGING_WEB_APP_URL}
+  backend:
+    env_file:
+      - path: ./backend/.env.staging
+        required: false
+    environment:
+      APP_ENV: staging
+      WEB_APP_URL: ${STAGING_WEB_APP_URL:?Set STAGING_WEB_APP_URL}
+      CORS_ALLOWED_ORIGINS: ${STAGING_WEB_APP_URL:?Set STAGING_WEB_APP_URL}
+  worker:
+    env_file:
+      - path: ./backend/.env.staging
+        required: false
+  web:
+    build:
+      context: ./web
+      args: {AGENTTRUST_HTTPS: "${STAGING_HTTPS:-false}"}
+    environment:
+      AGENTTRUST_API_URL: http://backend:8000

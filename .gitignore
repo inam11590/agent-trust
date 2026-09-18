@@ -1,0 +1,64 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+
+# Node.js / Next.js
+node_modules/
+.next/
+.next-*/
+.npm-cache/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+android/local.properties
+**/android/key.properties
+*.jks
+*.keystore
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# Build output, logs, editors and operating systems
+build/
+dist/
+coverage/
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.dump
+*.sql.gz
+.secrets/

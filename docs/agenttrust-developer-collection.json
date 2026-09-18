@@ -1,0 +1,579 @@
+{
+  "info": {
+    "_postman_id": "6c09c7bb-2191-422a-ba46-step18developer",
+    "name": "AgentTrust Developer Platform API",
+    "description": "Official Postman and Bruno Collection for the AgentTrust Developer Platform, Sandbox Environment, and Authorization Engine.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "API_KEY",
+      "value": "at_test_replace_with_your_sandbox_api_key_here",
+      "type": "string"
+    },
+    {
+      "key": "AGENT_ID",
+      "value": "agt_travel_assistant",
+      "type": "string"
+    },
+    {
+      "key": "REQUEST_ID",
+      "value": "req_example_id",
+      "type": "string"
+    },
+    {
+      "key": "DELIVERY_ID",
+      "value": "del_example_id",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Developer Platform",
+      "item": [
+        {
+          "name": "Developer Overview & Onboarding",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/overview",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "overview"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Sandbox API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Sandbox Integration Key\", \"environment\": \"sandbox\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/developer/api-keys",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "api-keys"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Sandbox Test Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Travel Booking Assistant Test\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/developer/agents/test",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "agents",
+                "test"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Permission Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agent_id\": \"{{AGENT_ID}}\", \"template\": \"flight_purchase\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/developer/permissions/templates",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "permissions",
+                "templates"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Production Readiness Checklist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/production-access/checklist",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "production-access",
+                "checklist"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request Production Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"business_justification\": \"Production deployment for AI customer flight booking agent.\", \"use_case\": \"Automated booking and ticket issuance.\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/developer/production-access/request",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "production-access",
+                "request"
+              ]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI Specification JSON",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/developer/openapi.json",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "openapi.json"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sandbox Scenarios",
+      "item": [
+        {
+          "name": "List Sandbox Scenarios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Scenario 1 (Approved:  Flight)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios/scenario_1/run",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios",
+                "scenario_1",
+                "run"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Scenario 2 (Pending:  Hotel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios/scenario_2/run",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios",
+                "scenario_2",
+                "run"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Scenario 3 (Rejected:  Limit Exceeded)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios/scenario_3/run",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios",
+                "scenario_3",
+                "run"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Scenario 4 (Invalid Signature: Tampered Payload)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios/scenario_4/run",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios",
+                "scenario_4",
+                "run"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Scenario 5 (Replay Detected: Duplicate Nonce)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/sandbox/scenarios/scenario_5/run",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "sandbox",
+                "scenarios",
+                "scenario_5",
+                "run"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authorization Engine",
+      "item": [
+        {
+          "name": "Authorize Action",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "checkout-req-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agent_id\": \"{{AGENT_ID}}\", \"action\": \"purchase\", \"resource\": \"flight\", \"amount\": 300.0, \"currency\": \"USD\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/authorize",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authorize"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Authorization Request Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/authorization-requests/{{REQUEST_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authorization-requests",
+                "{{REQUEST_ID}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks & Observability",
+      "item": [
+        {
+          "name": "Trigger Test Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"target_url\": \"https://webhook.site/placeholder-test\"}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/developer/webhooks/test",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "webhooks",
+                "test"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Webhook Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/webhooks/deliveries",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "webhooks",
+                "deliveries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Retry Webhook Delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/webhooks/deliveries/{{DELIVERY_ID}}/retry",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "webhooks",
+                "deliveries",
+                "{{DELIVERY_ID}}",
+                "retry"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Query Developer Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/logs?limit=50",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Developer Log Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/developer/logs/{{REQUEST_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "developer",
+                "logs",
+                "{{REQUEST_ID}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

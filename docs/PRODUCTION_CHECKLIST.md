@@ -1,0 +1,21 @@
+# Production checklist
+
+- [ ] Production and staging use separate databases, Redis, domains, and secrets.
+- [ ] All required environment validation passes.
+- [ ] JWT, database, metrics, webhook, email, FCM, and billing secrets are in a secret store.
+- [ ] PostgreSQL uses TLS and is not publicly exposed.
+- [ ] Redis is private and `RATE_LIMIT_BACKEND=redis`.
+- [ ] Worker egress and public edge rate limits are configured.
+- [ ] Migrations and restore were tested against a recent backup in staging.
+- [ ] HTTPS is enabled and forwarded headers are trusted only from the load balancer.
+- [ ] CORS contains exact HTTPS web origins.
+- [ ] `/health/live` and `/health/ready` uptime checks alert correctly.
+- [ ] `/metrics` is private and its token is configured.
+- [ ] Structured logs are collected with retention and access controls.
+- [ ] Sentry is enabled with PII disabled, or its absence is explicitly accepted.
+- [ ] Daily encrypted backups and restore alerts are enabled.
+- [ ] API, worker, web, Flutter, and SDK CI jobs pass.
+- [ ] Dependency, secret, and container scans pass or findings are accepted.
+- [ ] Billing remains `test` or `paddle_sandbox`.
+- [ ] Notification and webhook retries were tested.
+- [ ] Rollback owner and incident contacts are assigned.
