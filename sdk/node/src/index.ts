@@ -233,6 +233,21 @@ export class AgentTrust {
       throw new AgentTrustError("Could not connect to AgentTrust");
     } finally { clearTimeout(timer); }
   }
+
+  async dispatchAtpEnvelope(envelope: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/atp/messages", {
+      method: "POST",
+      body: JSON.stringify(envelope),
+    });
+  }
+
+  async getAtpMessage(messageId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/atp/messages/${messageId}`, { method: "GET" });
+  }
+
+  async getGatewayIdentity(): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/atp/gateway-identity", { method: "GET" });
+  }
 }
 
 export class SignedAgent {
@@ -267,5 +282,31 @@ export class SignedAgent {
       allow_delegation: options.allowDelegation ?? true,
       expires_at: options.expiresAt,
     });
+  }
+
+  sendAtpMessage(options: {
+    sourceOrgId: string;
+    targetAddress: string;
+    capability: string;
+    payload: unknown;
+    messageId?: string;
+  }): Promise<Record<string, unknown>> {
+    if (!options.targetAddress.startsWith("atp://")) {
+      throw new Error(`Invalid target address: ${options.targetAddress}. Expected atp://<org>/<agent>`);
+    }
+    const parts = options.targetAddress.slice("atp://".length).split("/");
+    if (parts.length !== 2) {
+      throw new Error(`Invalid target address: ${options.targetAddress}. Expected atp://<org>/<agent>`);
+    }
+    const [targetOrgId, targetAgentId] = parts;
+    const envelope = this.signer.signAtpEnvelope({
+      sourceOrgId: options.sourceOrgId,
+      targetOrgId,
+      targetAgentId,
+      capability: options.capability,
+      payload: options.payload,
+      messageId: options.messageId,
+    });
+    return this.client.dispatchAtpEnvelope(envelope);
   }
 }

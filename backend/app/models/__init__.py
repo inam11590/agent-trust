@@ -58,6 +58,14 @@ from app.models.cross_organization_trust import (
     TargetOrganizationPolicy,
     TrustStatus,
 )
+from app.models.agenttrust_protocol import (
+    AgentCapability,
+    AgentEndpoint,
+    ATPDeliveryStatus,
+    ATPMessageDelivery,
+    ATPMessageRecord,
+    EndpointStatus,
+)
 
 __all__ = [
     "Agent",
@@ -97,4 +105,6 @@ __all__ = [
     "OrganizationPublicProfile", "TargetOrganizationPolicy", "ExternalAgentConnection",
     "CrossOrganizationRequest", "CrossOrgRequestStatus", "CrossOrganizationApproval",
     "ApprovalStage", "ApprovalStatus",
+    "AgentEndpoint", "EndpointStatus", "AgentCapability", "ATPMessageRecord",
+    "ATPMessageDelivery", "ATPDeliveryStatus",
 ]

@@ -66,5 +66,22 @@ public final class AgentSigning {
                     "X-Agent-Signature-Version", "v1");
             } catch (Exception error) { throw new IllegalStateException("Ed25519 signing failed", error); }
         }
+
+        public String signAtpBytes(byte[] canonicalBytes) {
+            try {
+                Signature signature = Signature.getInstance("Ed25519");
+                signature.initSign(privateKey);
+                signature.update(canonicalBytes);
+                return Base64.getEncoder().encodeToString(signature.sign());
+            } catch (Exception error) { throw new IllegalStateException("Ed25519 ATP signing failed", error); }
+        }
+    }
+
+    public static byte[] canonicalAtpRequest(String messageId, String messageType, String sourceOrgId,
+                                            String sourceAgentId, String targetOrgId, String targetAgentId,
+                                            String capability, String timestamp, String nonce, String payloadSha256) {
+        return String.join("\n", "ATP-SIG/1", messageId, messageType, sourceOrgId, sourceAgentId,
+                           targetOrgId, targetAgentId, capability, timestamp, nonce, payloadSha256, "")
+            .getBytes(StandardCharsets.UTF_8);
     }
 }

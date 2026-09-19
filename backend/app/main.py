@@ -31,6 +31,7 @@ from app.api.risk import router as risk_router
 from app.api.billing import router as billing_router
 from app.api.cross_organization_trust import router as cross_org_trust_router, profile_router as cross_org_profile_router
 from app.api.cross_org_requests import router as cross_org_requests_router
+from app.api.atp_gateway import router as atp_gateway_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -78,7 +79,9 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Organization-ID", "Idempotency-Key",
                        "X-Agent-ID", "X-Agent-Key-ID", "X-Agent-Timestamp", "X-Agent-Nonce",
-                       "X-Agent-Signature", "X-Agent-Signature-Version"],
+                       "X-Agent-Signature", "X-Agent-Signature-Version",
+                       "X-ATP-Protocol", "X-ATP-Gateway-Attestation", "X-ATP-Message-ID",
+                       "X-ATP-Source", "X-ATP-Target", "X-ATP-Capability"],
     )
     application.include_router(health_router)
     application.include_router(auth_router)
@@ -101,6 +104,8 @@ def create_app() -> FastAPI:
     application.include_router(developer_management_router)
     application.include_router(developer_api_router)
     application.include_router(audit_logs_router)
+    application.include_router(atp_gateway_router, prefix="/api/v1")
+    application.include_router(atp_gateway_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)

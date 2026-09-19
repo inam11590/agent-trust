@@ -223,6 +223,18 @@ class AgentTrust:
             raise ValueError("A valid request_id is required")
         return self._result(self._request("GET", f"/api/v1/authorization-requests/{request_id}"))
 
+    def dispatch_atp_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        """Dispatch a signed ATP/1.0 envelope to the AgentTrust Gateway."""
+        return self._request("POST", "/api/v1/atp/messages", envelope)
+
+    def get_atp_message(self, message_id: str) -> dict[str, Any]:
+        """Retrieve state and delivery audit logs for an ATP message."""
+        return self._request("GET", f"/api/v1/atp/messages/{message_id}")
+
+    def get_gateway_identity(self) -> dict[str, Any]:
+        """Fetch the public Gateway Ed25519 identity key and attestation parameters."""
+        return self._request("GET", "/api/v1/atp/gateway-identity")
+
     @staticmethod
     def _result(data: dict[str, Any]) -> AuthorizationResult:
         return AuthorizationResult(str(data["request_id"]), str(data["status"]), str(data["reason"]))
@@ -324,3 +336,30 @@ class SignedAgent:
         if expires_at is not None:
             payload["expires_at"] = expires_at
         return self._client.create_delegation(payload)
+
+    def send_atp_message(
+        self,
+        *,
+        source_org_id: str,
+        target_address: str,
+        capability: str,
+        payload: Any,
+        message_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Sign and dispatch an ATP/1.0 message to a target agent via AgentTrust Gateway."""
+        if not target_address.startswith("atp://"):
+            raise ValueError(f"Invalid target address: {target_address}. Expected atp://<org>/<agent>")
+        parts = target_address[len("atp://"):].split("/")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid target address: {target_address}. Expected atp://<org>/<agent>")
+        target_org_id, target_agent_id = parts[0], parts[1]
+
+        envelope = self._signer.sign_atp_envelope(
+            source_org_id=source_org_id,
+            target_org_id=target_org_id,
+            target_agent_id=target_agent_id,
+            capability=capability,
+            payload=payload,
+            message_id=message_id,
+        )
+        return self._client.dispatch_atp_envelope(envelope)

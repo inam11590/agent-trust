@@ -326,3 +326,67 @@ export interface CrossOrganizationRequest {
   approvals?: CrossOrganizationApproval[];
 }
 
+export interface AgentEndpoint {
+  id: string;
+  organization_id: string;
+  agent_id: string;
+  endpoint_url: string;
+  status: "PENDING" | "VERIFIED" | "DISABLED";
+  verification_token: string;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentCapability {
+  id: string;
+  organization_id: string;
+  agent_id: string;
+  name: string;
+  version: string;
+  description: string | null;
+  input_schema?: Record<string, unknown> | null;
+  output_schema?: Record<string, unknown> | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ATPMessageRecord {
+  id: string;
+  message_id: string;
+  atp_version: string;
+  message_type: string;
+  source_organization_id: string;
+  source_agent_id: string;
+  target_organization_id: string;
+  target_agent_id: string;
+  capability: string;
+  status: "PENDING" | "DELIVERING" | "DELIVERED" | "RETRYING" | "FAILED" | "PENDING_APPROVAL";
+  decision_reason: string | null;
+  attestation_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ATPMessageDelivery {
+  id: string;
+  message_id: string;
+  target_endpoint_id: string | null;
+  status: string;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  completed_at: string | null;
+  http_status: number | null;
+  response_payload?: Record<string, unknown> | null;
+  error_message?: string | null;
+}
+
+export interface GatewayIdentity {
+  issuer: string;
+  key_id: string;
+  algorithm: string;
+  public_key_base64: string;
+  public_key_pem: string;
+  attestation_ttl_seconds: number;
+}
+

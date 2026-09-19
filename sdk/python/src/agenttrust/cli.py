@@ -594,6 +594,83 @@ def cmd_delegations_revoke(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_atp_send(args: argparse.Namespace) -> int:
+    config = load_config()
+    source_org_id = args.source_org_id or config.get("organization_id")
+    if not source_org_id:
+        print("Error: --source-org-id is required.", file=sys.stderr)
+        return 1
+
+    payload_data = {}
+    if args.payload:
+        if Path(args.payload).is_file():
+            payload_data = json.loads(Path(args.payload).read_text(encoding="utf-8"))
+        else:
+            try:
+                payload_data = json.loads(args.payload)
+            except Exception:
+                payload_data = {"text": args.payload}
+
+    client = get_client(args)
+    signed_agent = client.agent(
+        agent_id=args.source_agent_id,
+        key_id=args.key_id,
+        private_key_path=args.private_key_path,
+    )
+    try:
+        resp = signed_agent.send_atp_message(
+            source_org_id=source_org_id,
+            target_address=args.target_address,
+            capability=args.capability,
+            payload=payload_data,
+        )
+        print("ATP Message Dispatch Result:")
+        print(json.dumps(resp, indent=2))
+        return 0
+    except Exception as exc:
+        print(f"Failed to dispatch ATP message: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_atp_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.get_atp_message(args.message_id)
+        print(f"ATP Message [{args.message_id}]:")
+        print(json.dumps(res, indent=2))
+        return 0
+    except Exception as exc:
+        print(f"Failed to retrieve ATP message: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_gateway_health(args: argparse.Namespace) -> int:
+    config = load_config()
+    base_url = getattr(args, "base_url", None) or config.get("base_url") or "http://localhost:8000"
+    try:
+        req = Request(f"{base_url.rstrip('/')}/api/v1/atp/health", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read())
+            print("AgentTrust Gateway Health:")
+            print(json.dumps(data, indent=2))
+            return 0
+    except Exception as exc:
+        print(f"Failed to query gateway health: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_gateway_identity(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.get_gateway_identity()
+        print("AgentTrust Gateway Identity:")
+        print(json.dumps(res, indent=2))
+        return 0
+    except Exception as exc:
+        print(f"Failed to retrieve gateway identity: {exc}", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -763,6 +840,34 @@ def main(argv: list[str] | None = None) -> int:
     p_ea.add_argument("--idempotency-key", help="Unique idempotency key")
     p_ea.add_argument("--source-org-id", help="Source Organization UUID")
     p_ea.set_defaults(func=cmd_external_authorize)
+
+    # atp (Step 21 AgentTrust Protocol)
+    p_atp = subparsers.add_parser("atp", help="AgentTrust Protocol (ATP/1.0) messaging and dispatch", parents=[common])
+    sub_atp = p_atp.add_subparsers(dest="subcommand", required=True)
+
+    p_atp_send = sub_atp.add_parser("send", help="Send ATP/1.0 signed message through Gateway", parents=[common])
+    p_atp_send.add_argument("--source-org-id", required=True, help="Source Organization ID or Slug")
+    p_atp_send.add_argument("--source-agent-id", required=True, help="Source Agent ID or Identifier")
+    p_atp_send.add_argument("--target-address", required=True, help="Target Agent Address (e.g. atp://org/agt)")
+    p_atp_send.add_argument("--capability", required=True, help="Requested capability (e.g. hotel.reserve@1.0)")
+    p_atp_send.add_argument("--payload", help="JSON string or file path containing message payload")
+    p_atp_send.add_argument("--key-id", required=True, help="Source agent signing key ID")
+    p_atp_send.add_argument("--private-key-path", required=True, help="Path to Ed25519 private key PEM file")
+    p_atp_send.set_defaults(func=cmd_atp_send)
+
+    p_atp_get = sub_atp.add_parser("get", help="Retrieve ATP message delivery status and audit trace", parents=[common])
+    p_atp_get.add_argument("message_id", help="ATP Message ID (e.g. msg_...)")
+    p_atp_get.set_defaults(func=cmd_atp_get)
+
+    # gateway (Step 21 AgentTrust Gateway commands)
+    p_gw = subparsers.add_parser("gateway", help="AgentTrust Gateway health and identity commands", parents=[common])
+    sub_gw = p_gw.add_subparsers(dest="subcommand", required=True)
+
+    p_gw_health = sub_gw.add_parser("health", help="Check Gateway health and protocol readiness", parents=[common])
+    p_gw_health.set_defaults(func=cmd_gateway_health)
+
+    p_gw_id = sub_gw.add_parser("identity", help="Retrieve public Gateway Ed25519 identity key", parents=[common])
+    p_gw_id.set_defaults(func=cmd_gateway_identity)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

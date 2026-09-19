@@ -91,4 +91,70 @@ export class AgentSigner {
       "X-Target-Agent-ID": targetAgentId,
     };
   }
+
+  signAtpEnvelope(options: {
+    sourceOrgId: string;
+    targetOrgId: string;
+    targetAgentId: string;
+    capability: string;
+    payload: unknown;
+    messageId?: string;
+    timestamp?: string;
+    nonce?: string;
+  }): Record<string, unknown> {
+    const msgId = options.messageId ?? `msg_${randomBytes(16).toString("hex")}`;
+    const ts = options.timestamp ?? new Date().toISOString().slice(0, 19) + "Z";
+    const n = options.nonce ?? `nonce_${randomBytes(16).toString("hex")}`;
+
+    // Canonical payload hash (sort keys deterministically)
+    const sortedJson = options.payload === null || options.payload === undefined
+      ? "{}"
+      : typeof options.payload === "string"
+      ? options.payload
+      : JSON.stringify(options.payload, Object.keys(options.payload as object).sort());
+    const payloadSha256 = createHash("sha256").update(Buffer.from(sortedJson, "utf8")).digest("hex");
+
+    const canonical = Buffer.from([
+      "ATP-SIG/1",
+      msgId,
+      "request",
+      options.sourceOrgId,
+      this.agentId,
+      options.targetOrgId,
+      options.targetAgentId,
+      options.capability,
+      ts,
+      n,
+      payloadSha256,
+      "",
+    ].join("\n"), "utf8");
+
+    const signature = sign(null, canonical, this.privateKey);
+
+    return {
+      protocol: "ATP/1.0",
+      message_id: msgId,
+      message_type: "request",
+      source: {
+        organization_id: options.sourceOrgId,
+        agent_id: this.agentId,
+        address: `atp://${options.sourceOrgId}/${this.agentId}`,
+      },
+      target: {
+        organization_id: options.targetOrgId,
+        agent_id: options.targetAgentId,
+        address: `atp://${options.targetOrgId}/${options.targetAgentId}`,
+      },
+      capability: options.capability,
+      timestamp: ts,
+      nonce: n,
+      payload: options.payload,
+      payload_sha256: payloadSha256,
+      signature: {
+        version: "ATP-SIG/1",
+        key_id: this.keyId,
+        value: signature.toString("base64"),
+      },
+    };
+  }
 }

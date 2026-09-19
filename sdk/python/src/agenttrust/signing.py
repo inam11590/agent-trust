@@ -3,8 +3,10 @@
 import base64
 from datetime import datetime, timezone
 import hashlib
+import json
 from pathlib import Path
 import secrets
+from typing import Any
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -103,5 +105,74 @@ class AgentSigner:
             "X-Source-Org-ID": str(source_org_id),
             "X-Target-Org-ID": str(target_org_id),
             "X-Target-Agent-ID": str(target_agent_id),
+        }
+
+    def sign_atp_envelope(
+        self,
+        *,
+        source_org_id: str,
+        target_org_id: str,
+        target_agent_id: str,
+        capability: str,
+        payload: Any,
+        message_id: str | None = None,
+        timestamp: str | None = None,
+        nonce: str | None = None,
+    ) -> dict[str, Any]:
+        """Sign and construct an ATP/1.0 request envelope using ATP-SIG/1 profile."""
+        msg_id = message_id or f"msg_{secrets.token_hex(16)}"
+        ts = timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        n = nonce or f"nonce_{secrets.token_hex(16)}"
+
+        # Compute payload hash
+        if payload is None:
+            canon_json = b"{}"
+        elif isinstance(payload, bytes):
+            canon_json = payload
+        else:
+            canon_json = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        payload_sha256 = hashlib.sha256(canon_json).hexdigest()
+
+        # Build canonical bytes
+        canon_ascii = "\n".join([
+            "ATP-SIG/1",
+            msg_id,
+            "request",
+            source_org_id,
+            self.agent_id,
+            target_org_id,
+            target_agent_id,
+            capability,
+            ts,
+            n,
+            payload_sha256,
+        ]) + "\n"
+        sig_bytes = self._private_key.sign(canon_ascii.encode("utf-8"))
+        sig_b64 = base64.b64encode(sig_bytes).decode("ascii")
+
+        return {
+            "protocol": "ATP/1.0",
+            "message_id": msg_id,
+            "message_type": "request",
+            "source": {
+                "organization_id": source_org_id,
+                "agent_id": self.agent_id,
+                "address": f"atp://{source_org_id}/{self.agent_id}",
+            },
+            "target": {
+                "organization_id": target_org_id,
+                "agent_id": target_agent_id,
+                "address": f"atp://{target_org_id}/{target_agent_id}",
+            },
+            "capability": capability,
+            "timestamp": ts,
+            "nonce": n,
+            "payload": payload,
+            "payload_sha256": payload_sha256,
+            "signature": {
+                "version": "ATP-SIG/1",
+                "key_id": self.key_id,
+                "value": sig_b64,
+            },
         }
 

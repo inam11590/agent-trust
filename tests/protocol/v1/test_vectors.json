@@ -1,0 +1,28 @@
+{
+  "protocol": "ATP/1.0",
+  "signing_version": "ATP-SIG/1",
+  "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEILMErEc4PqPYmJqrxZnIt40c0RQpfVkFE2wk+4iRf9R1\n-----END PRIVATE KEY-----\n",
+  "public_key_base64": "TzM1AOAPwpyTV/XyG0kFCN6v7XVsKagGDG/ZHSctK+A=",
+  "message_id": "msg_test_01h8abcdef0123456789",
+  "message_type": "request",
+  "source": {
+    "organization_id": "org_skytravel",
+    "agent_id": "agt_travel"
+  },
+  "target": {
+    "organization_id": "org_hotelcorp",
+    "agent_id": "agt_hotel"
+  },
+  "capability": "hotel.reserve@1.0",
+  "timestamp": "2026-09-19T10:00:00Z",
+  "nonce": "nonce_1234567890abcdef12345678",
+  "payload": {
+    "hotel_id": "hotel_grand_hyatt",
+    "amount": 450,
+    "currency": "USD"
+  },
+  "payload_sha256": "a3c5c515d2d87829e250ddca2c87bfd1ca83ee0f06783942a6ad88b037dcb393",
+  "canonical_ascii": "ATP-SIG/1\nmsg_test_01h8abcdef0123456789\nrequest\norg_skytravel\nagt_travel\norg_hotelcorp\nagt_hotel\nhotel.reserve@1.0\n2026-09-19T10:00:00Z\nnonce_1234567890abcdef12345678\na3c5c515d2d87829e250ddca2c87bfd1ca83ee0f06783942a6ad88b037dcb393\n",
+  "canonical_base64": "QVRQLVNJRy8xCm1zZ190ZXN0XzAxaDhhYmNkZWYwMTIzNDU2Nzg5CnJlcXVlc3QKb3JnX3NreXRyYXZlbAphZ3RfdHJhdmVsCm9yZ19ob3RlbGNvcnAKYWd0X2hvdGVsCmhvdGVsLnJlc2VydmVAMS4wCjIwMjYtMDktMTlUMTA6MDA6MDBaCm5vbmNlXzEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3OAphM2M1YzUxNWQyZDg3ODI5ZTI1MGRkY2EyYzg3YmZkMWNhODNlZTBmMDY3ODM5NDJhNmFkODhiMDM3ZGNiMzkzCg==",
+  "signature_base64": "PhO4uyrseQa/hZBsDiFpuH9LRhnpW1u6sl3XVSJFfXkGiCdSv+2RharqvPBJwVsS3BK6IOraAvCLUEXZpFFqAw=="
+}
