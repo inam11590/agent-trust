@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, LogOut, Menu, Network, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
+import { BadgeCheck, Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, LogOut, Menu, Network, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
 
 import { useAuth } from "@/contexts/auth-context";
 import { NotificationBell } from "@/components/notification-bell";
@@ -15,6 +15,7 @@ const navigation = [
   { href: "/dashboard/permissions", label: "Permissions", icon: KeyRound },
   { href: "/dashboard/delegations", label: "Delegations", icon: GitFork },
   { href: "/dashboard/trust", label: "Partner Trust", icon: Network },
+  { href: "/dashboard/trust-registry", label: "Trust Registry", icon: BadgeCheck },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: FileClock },
   { href: "/dashboard/risk", label: "Risk", icon: ShieldAlert },
   { href: "/dashboard/developers", label: "Developers", icon: Braces },

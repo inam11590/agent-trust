@@ -271,6 +271,7 @@ class TargetOrganizationPolicy(Base):
 
     require_human_approval: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     approval_threshold: Mapped[Decimal | None] = mapped_column(Numeric(19, 4), nullable=True)
+    required_credential_types: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

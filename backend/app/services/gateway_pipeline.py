@@ -44,7 +44,12 @@ from app.models.agenttrust_protocol import (
     ATPMessageRecord,
     EndpointStatus,
 )
-from app.models.organization import Organization
+from app.models.cross_organization_trust import (
+    OrganizationTrustRelationship,
+    TargetOrganizationPolicy,
+    TrustStatus,
+)
+from app.models.organization import Organization, SecurityEvent
 from app.services.atp_canonical import (
     PROTOCOL_VERSION,
     SIGNING_VERSION,
@@ -54,6 +59,10 @@ from app.services.atp_canonical import (
     parse_agent_address,
 )
 from app.services.atp_router import ATPRoutingError, route_atp_message
+from app.services.credential_service import (
+    CredentialVerificationError,
+    verify_agent_credential,
+)
 from app.services.sandbox_mock_agents import is_sandbox_mock_agent
 
 
@@ -344,15 +353,118 @@ def process_atp_message(
         ) from exc
 
     # -------------------------------------------------------------
+    # Stage 5.5: Verifiable Agent Credential Verification (Step 22)
+    # -------------------------------------------------------------
+    presented_creds = envelope.get("credentials") or []
+    dst_org_obj, dst_agent_obj = resolve_agent_and_org(db, target_org_id, target_agent_id)
+    if dst_org_obj:
+        target_policy = db.execute(
+            select(TargetOrganizationPolicy).where(TargetOrganizationPolicy.organization_id == dst_org_obj.id)
+        ).scalar_one_or_none()
+        if target_policy and getattr(target_policy, "required_credential_types", None):
+            for req_type in target_policy.required_credential_types:
+                has_type = any(
+                    isinstance(c, dict) and c.get("credential_type") == req_type
+                    for c in presented_creds
+                )
+                if not has_type:
+                    raise GatewayPipelineError(
+                        f"Target organization requires presented credential of type '{req_type}'.",
+                        code="REQUIRED_CREDENTIAL_MISSING",
+                        status_code=403,
+                    )
+
+    for cred in presented_creds:
+        if not isinstance(cred, dict):
+            continue
+        try:
+            verify_agent_credential(
+                db=db,
+                credential=cred,
+                expected_environment="production",
+            )
+        except CredentialVerificationError as c_err:
+            db.add(SecurityEvent(
+                organization_id=src_org_obj.id if src_org_obj else None,
+                event_type=f"credential_verification_failed_{c_err.code.lower()}",
+                severity="warning",
+                description=f"Credential verification failed: {c_err.message}",
+                details={"credential_id": cred.get("credential_id"), "code": c_err.code},
+            ))
+            db.commit()
+            raise GatewayPipelineError(
+                f"Credential verification failed: {c_err.message}",
+                code=c_err.code,
+                status_code=c_err.status_code,
+            ) from c_err
+
+        # Check Subject Binding
+        cred_subj = cred.get("subject") or {}
+        cred_agt = cred_subj.get("agent_id")
+        if cred_agt not in (src_agent_obj.agent_identifier, str(src_agent_obj.id), src_agent_obj.name):
+            db.add(SecurityEvent(
+                organization_id=src_org_obj.id if src_org_obj else None,
+                event_type="credential_subject_mismatch",
+                severity="warning",
+                description="Presented credential subject does not match source agent.",
+                details={"credential_subject": cred_agt, "source_agent": src_agent_obj.agent_identifier},
+            ))
+            db.commit()
+            raise GatewayPipelineError(
+                f"Credential subject '{cred_agt}' does not match source agent '{src_agent_obj.agent_identifier}'.",
+                code="CREDENTIAL_SUBJECT_INVALID",
+                status_code=403,
+            )
+
+        # Check Organization Binding
+        cred_org = cred_subj.get("organization_id")
+        if src_org_obj and cred_org not in (src_org_obj.name, str(src_org_obj.id)):
+            db.add(SecurityEvent(
+                organization_id=src_org_obj.id if src_org_obj else None,
+                event_type="credential_organization_mismatch",
+                severity="warning",
+                description="Presented credential organization does not match source organization.",
+                details={"credential_org": cred_org, "source_org": src_org_obj.name},
+            ))
+            db.commit()
+            raise GatewayPipelineError(
+                f"Credential organization '{cred_org}' does not match source organization '{src_org_obj.name}'.",
+                code="CREDENTIAL_CLAIM_INVALID",
+                status_code=403,
+            )
+
+        # Check Capability Binding
+        if cred.get("credential_type") == "AgentCapabilityCredential":
+            claims_caps = (cred.get("claims") or {}).get("capabilities", [])
+            if capability not in claims_caps:
+                db.add(SecurityEvent(
+                    organization_id=src_org_obj.id if src_org_obj else None,
+                    event_type="credential_capability_mismatch",
+                    severity="warning",
+                    description=f"Credential does not attest to requested capability '{capability}'.",
+                    details={"requested_capability": capability, "credential_capabilities": claims_caps},
+                ))
+                db.commit()
+                raise GatewayPipelineError(
+                    f"Presented capability credential does not attest to capability '{capability}'.",
+                    code="CREDENTIAL_CAPABILITY_MISMATCH",
+                    status_code=403,
+                )
+
+    # -------------------------------------------------------------
     # Stage 6 & 7: Cross-Organization Trust Check
     # -------------------------------------------------------------
     is_mock = is_sandbox_mock_agent(target_addr)
     if not is_mock and src_org_obj:
         dst_org_obj, dst_agent_obj = resolve_agent_and_org(db, target_org_id, target_agent_id)
         if dst_org_obj and dst_org_obj.id != src_org_obj.id:
-            from app.services.cross_organization_trust import get_trust_relationship
-            trust = get_trust_relationship(db, source_org_id=src_org_obj.id, target_org_id=dst_org_obj.id)
-            if not trust or getattr(trust, "status", None) != "ACTIVE":
+            trust = db.scalar(
+                select(OrganizationTrustRelationship).where(
+                    OrganizationTrustRelationship.source_organization_id == src_org_obj.id,
+                    OrganizationTrustRelationship.target_organization_id == dst_org_obj.id,
+                )
+            )
+            if not trust or trust.status != TrustStatus.ACTIVE:
                 raise GatewayPipelineError(
                     f"No active cross-organization trust relationship between '{src_org_obj.name}' and '{dst_org_obj.name}'.",
                     code="CROSS_ORG_TRUST_REQUIRED",

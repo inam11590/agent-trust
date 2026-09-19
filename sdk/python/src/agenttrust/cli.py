@@ -671,6 +671,141 @@ def cmd_gateway_identity(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_credentials_issue(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    claims_dict = None
+    if getattr(args, "claims", None):
+        if Path(args.claims).is_file():
+            claims_dict = json.loads(Path(args.claims).read_text(encoding="utf-8"))
+        else:
+            try:
+                claims_dict = json.loads(args.claims)
+            except Exception:
+                claims_dict = {"capabilities": [args.claims]}
+    elif getattr(args, "capabilities", None):
+        claims_dict = {"capabilities": [c.strip() for c in args.capabilities.split(",")]}
+
+    try:
+        cred = client.credentials.issue(
+            agent_id=args.agent,
+            credential_type=args.type,
+            claims=claims_dict,
+            validity_days=getattr(args, "validity_days", None),
+            environment=getattr(args, "environment", "production") or "production",
+        )
+        print("Credential Issued Successfully:")
+        print(json.dumps(cred, indent=2))
+        return 0
+    except Exception as exc:
+        print(f"Failed to issue credential: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_credentials_verify(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    cred_data = None
+    if getattr(args, "file", None):
+        cred_data = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    elif getattr(args, "json", None):
+        cred_data = json.loads(args.json)
+    else:
+        print("Error: --file or --json is required.", file=sys.stderr)
+        return 1
+
+    try:
+        res = client.credentials.verify(
+            credential=cred_data,
+            expected_environment=getattr(args, "environment", "production") or "production",
+        )
+        print("Credential Signature    PASS")
+        print("Issuer                  ACTIVE")
+        print("Subject                 VALID")
+        print("Expiration              VALID")
+        print("Revocation              CLEAR")
+        print()
+        print("Overall                 VERIFIED")
+        print()
+        print(f"Credential ID: {res.get('credential_id')}")
+        print(f"Type:          {res.get('credential_type')}")
+        print(f"Subject:       {res.get('subject_agent_id')}")
+        return 0
+    except Exception as exc:
+        print("Credential Verification: FAILED", file=sys.stderr)
+        print(f"Details: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_credentials_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.credentials.get_status(args.credential_id)
+        print(f"Credential Status [{args.credential_id}]:")
+        for k, v in res.items():
+            print(f"  {k}: {v}")
+        return 0
+    except Exception as exc:
+        print(f"Failed to fetch credential status: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_credentials_revoke(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.credentials.revoke(args.credential_id, reason_code=args.reason)
+        print(f"Credential '{args.credential_id}' revoked successfully.")
+        print(f"Status: {res.get('status')} | Reason: {res.get('reason_code')}")
+        return 0
+    except Exception as exc:
+        print(f"Failed to revoke credential: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_credentials_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.credentials.list(
+            status=getattr(args, "status", None),
+            credential_type=getattr(args, "type", None),
+        )
+        items = res.get("items", [])
+        print(f"Verifiable Credentials ({len(items)} found):")
+        for c in items:
+            print(f"  - [{c.get('credential_id')}] Type: {c.get('credential_type')} | Subject: {c.get('subject_agent_id')} | Status: {c.get('status')}")
+            print(f"    Expires: {c.get('expires_at')}")
+        return 0
+    except Exception as exc:
+        print(f"Failed to list credentials: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_issuers_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        issuers = client.issuers.list()
+        print(f"Credential Issuers ({len(issuers)} found):")
+        for i in issuers:
+            print(f"  - [{i.get('issuer_id')}] Name: {i.get('name')} | Status: {i.get('status')}")
+        return 0
+    except Exception as exc:
+        print(f"Failed to list issuers: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_issuers_keys(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    try:
+        res = client.issuers.get(args.issuer_id)
+        keys = res.get("signing_keys", [])
+        print(f"Signing Keys for Issuer [{args.issuer_id}] ({len(keys)} found):")
+        for k in keys:
+            print(f"  - Key ID: {k.get('key_id')} | Status: {k.get('status')} | Algorithm: {k.get('algorithm')}")
+            print(f"    Fingerprint: {k.get('fingerprint')}")
+        return 0
+    except Exception as exc:
+        print(f"Failed to fetch issuer keys: {exc}", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -868,6 +1003,50 @@ def main(argv: list[str] | None = None) -> int:
 
     p_gw_id = sub_gw.add_parser("identity", help="Retrieve public Gateway Ed25519 identity key", parents=[common])
     p_gw_id.set_defaults(func=cmd_gateway_identity)
+
+    # credentials (Step 22 Verifiable Agent Credentials)
+    p_cred = subparsers.add_parser("credentials", help="Issue, verify, and manage Verifiable Agent Credentials", parents=[common])
+    sub_cred = p_cred.add_subparsers(dest="subcommand", required=True)
+
+    p_ci = sub_cred.add_parser("issue", help="Issue an ATC/1.0 verifiable credential for an agent", parents=[common])
+    p_ci.add_argument("--agent", required=True, help="Subject Agent identifier or UUID")
+    p_ci.add_argument("--type", choices=["AgentIdentityCredential", "AgentCapabilityCredential"], default="AgentIdentityCredential", help="Credential type")
+    p_ci.add_argument("--claims", help="JSON string or file path containing additional claims")
+    p_ci.add_argument("--capabilities", help="Comma-separated capability list (for AgentCapabilityCredential)")
+    p_ci.add_argument("--validity-days", type=int, help="Credential lifetime in days")
+    p_ci.add_argument("--environment", choices=["production", "sandbox"], default="production", help="Target environment")
+    p_ci.set_defaults(func=cmd_credentials_issue)
+
+    p_cv = sub_cred.add_parser("verify", help="Verify an ATC/1.0 verifiable credential", parents=[common])
+    p_cv.add_argument("--file", help="Path to credential JSON file")
+    p_cv.add_argument("--json", help="Credential JSON string")
+    p_cv.add_argument("--environment", choices=["production", "sandbox"], default="production", help="Verification environment")
+    p_cv.set_defaults(func=cmd_credentials_verify)
+
+    p_cg = sub_cred.add_parser("get", help="Retrieve public status of a credential", parents=[common])
+    p_cg.add_argument("credential_id", help="Credential ID (cred_...)")
+    p_cg.set_defaults(func=cmd_credentials_get)
+
+    p_cr = sub_cred.add_parser("revoke", help="Revoke an issued credential", parents=[common])
+    p_cr.add_argument("credential_id", help="Credential ID (cred_...)")
+    p_cr.add_argument("--reason", default="ISSUER_ACTION", choices=["AGENT_REVOKED", "KEY_COMPROMISED", "CLAIMS_CHANGED", "ISSUER_ACTION", "SECURITY_EVENT"], help="Revocation reason code")
+    p_cr.set_defaults(func=cmd_credentials_revoke)
+
+    p_cl = sub_cred.add_parser("list", help="List issued credentials", parents=[common])
+    p_cl.add_argument("--status", choices=["ACTIVE", "REVOKED", "EXPIRED"], help="Filter by status")
+    p_cl.add_argument("--type", help="Filter by credential type")
+    p_cl.set_defaults(func=cmd_credentials_list)
+
+    # issuers (Step 22 Trust Registry Issuers)
+    p_iss = subparsers.add_parser("issuers", help="Manage Credential Issuers and Signing Keys", parents=[common])
+    sub_iss = p_iss.add_subparsers(dest="subcommand", required=True)
+
+    p_il = sub_iss.add_parser("list", help="List organization credential issuers", parents=[common])
+    p_il.set_defaults(func=cmd_issuers_list)
+
+    p_ik = sub_iss.add_parser("keys", help="List public signing keys for an issuer", parents=[common])
+    p_ik.add_argument("issuer_id", help="Issuer ID (iss_...)")
+    p_ik.set_defaults(func=cmd_issuers_keys)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

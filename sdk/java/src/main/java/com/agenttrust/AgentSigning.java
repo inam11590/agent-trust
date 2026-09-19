@@ -84,4 +84,14 @@ public final class AgentSigning {
                            targetOrgId, targetAgentId, capability, timestamp, nonce, payloadSha256, "")
             .getBytes(StandardCharsets.UTF_8);
     }
+
+    public static byte[] canonicalAtcCredential(String credentialVersion, String credentialId, String issuerId,
+                                                String subjectOrgId, String subjectAgentId, String credentialType,
+                                                String issuedAt, String notBefore, String expiresAt,
+                                                String environment, String claimsSha256) {
+        return String.join("\n", "ATC-SIG/1", credentialVersion, credentialId, issuerId,
+                           subjectOrgId, subjectAgentId, credentialType, issuedAt,
+                           (notBefore != null ? notBefore : ""), expiresAt, environment, claimsSha256, "")
+            .getBytes(StandardCharsets.US_ASCII);
+    }
 }

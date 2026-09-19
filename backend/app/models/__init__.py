@@ -64,7 +64,17 @@ from app.models.agenttrust_protocol import (
     ATPDeliveryStatus,
     ATPMessageDelivery,
     ATPMessageRecord,
+    AgentEndpoint,
     EndpointStatus,
+)
+from app.models.trust_registry import (
+    AgentCredential,
+    CredentialIssuer,
+    CredentialRevocationReason,
+    CredentialStatus,
+    IssuerKeyStatus,
+    IssuerSigningKey,
+    IssuerStatus,
 )
 
 __all__ = [
@@ -107,4 +117,6 @@ __all__ = [
     "ApprovalStage", "ApprovalStatus",
     "AgentEndpoint", "EndpointStatus", "AgentCapability", "ATPMessageRecord",
     "ATPMessageDelivery", "ATPDeliveryStatus",
+    "CredentialIssuer", "IssuerStatus", "IssuerSigningKey", "IssuerKeyStatus",
+    "AgentCredential", "CredentialStatus", "CredentialRevocationReason",
 ]

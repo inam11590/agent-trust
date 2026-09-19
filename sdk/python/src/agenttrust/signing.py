@@ -118,6 +118,7 @@ class AgentSigner:
         message_id: str | None = None,
         timestamp: str | None = None,
         nonce: str | None = None,
+        credentials: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Sign and construct an ATP/1.0 request envelope using ATP-SIG/1 profile."""
         msg_id = message_id or f"msg_{secrets.token_hex(16)}"
@@ -150,7 +151,7 @@ class AgentSigner:
         sig_bytes = self._private_key.sign(canon_ascii.encode("utf-8"))
         sig_b64 = base64.b64encode(sig_bytes).decode("ascii")
 
-        return {
+        envelope = {
             "protocol": "ATP/1.0",
             "message_id": msg_id,
             "message_type": "request",
@@ -175,4 +176,77 @@ class AgentSigner:
                 "value": sig_b64,
             },
         }
+        if credentials:
+            envelope["credentials"] = credentials
+        return envelope
+
+
+def canonical_atc_credential(
+    credential_version: str,
+    credential_id: str,
+    issuer_id: str,
+    subject_org_id: str,
+    subject_agent_id: str,
+    credential_type: str,
+    issued_at: str,
+    not_before: str | None,
+    expires_at: str,
+    environment: str,
+    claims: dict[str, Any],
+) -> tuple[bytes, str]:
+    """Compute canonical ASCII bytes and claims SHA-256 for an ATC/1.0 credential."""
+    claims_json = json.dumps(claims, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    claims_sha256 = hashlib.sha256(claims_json).hexdigest()
+    lines = [
+        "ATC-SIG/1",
+        credential_version.strip(),
+        credential_id.strip(),
+        issuer_id.strip(),
+        subject_org_id.strip(),
+        subject_agent_id.strip(),
+        credential_type.strip(),
+        issued_at.strip(),
+        (not_before or "").strip(),
+        expires_at.strip(),
+        environment.strip(),
+        claims_sha256.strip(),
+    ]
+    canonical_ascii = "\n".join(lines) + "\n"
+    return canonical_ascii.encode("ascii"), claims_sha256
+
+
+def verify_atc_credential_offline(credential: dict[str, Any], issuer_public_key_b64: str) -> bool:
+    """Verify an ATC/1.0 credential offline using a known issuer public key."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.exceptions import InvalidSignature
+
+    proof = credential.get("proof") or {}
+    sig_b64 = proof.get("signature")
+    if not sig_b64:
+        return False
+
+    subj = credential.get("subject") or {}
+    canon_bytes, _ = canonical_atc_credential(
+        credential_version=credential.get("credential_version", ""),
+        credential_id=credential.get("credential_id", ""),
+        issuer_id=credential.get("issuer", ""),
+        subject_org_id=subj.get("organization_id", ""),
+        subject_agent_id=subj.get("agent_id", ""),
+        credential_type=credential.get("credential_type", ""),
+        issued_at=credential.get("issued_at", ""),
+        not_before=credential.get("not_before"),
+        expires_at=credential.get("expires_at", ""),
+        environment=credential.get("environment", "production"),
+        claims=credential.get("claims") or {},
+    )
+
+    try:
+        pub_bytes = base64.b64decode(issuer_public_key_b64)
+        pub_key = Ed25519PublicKey.from_public_bytes(pub_bytes)
+        sig_bytes = base64.b64decode(sig_b64)
+        pub_key.verify(sig_bytes, canon_bytes)
+        return True
+    except (InvalidSignature, Exception):
+        return False
+
 

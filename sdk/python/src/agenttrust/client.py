@@ -43,6 +43,8 @@ class AgentTrust:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self.environment = "sandbox" if api_key.startswith("at_test_") else "production"
+        self.credentials = CredentialsClient(self)
+        self.issuers = IssuersClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -345,6 +347,7 @@ class SignedAgent:
         capability: str,
         payload: Any,
         message_id: str | None = None,
+        credentials: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Sign and dispatch an ATP/1.0 message to a target agent via AgentTrust Gateway."""
         if not target_address.startswith("atp://"):
@@ -361,5 +364,94 @@ class SignedAgent:
             capability=capability,
             payload=payload,
             message_id=message_id,
+            credentials=credentials,
         )
         return self._client.dispatch_atp_envelope(envelope)
+
+
+class CredentialsClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def issue(
+        self,
+        *,
+        agent_id: str,
+        credential_type: str = "AgentIdentityCredential",
+        claims: dict[str, Any] | None = None,
+        validity_days: int | None = None,
+        environment: str = "production",
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/credentials",
+            body={
+                "agent_id": agent_id,
+                "credential_type": credential_type,
+                "claims": claims,
+                "validity_days": validity_days,
+                "environment": environment,
+            },
+        )
+
+    def verify(self, credential: dict[str, Any], expected_environment: str = "production") -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/credentials/verify",
+            body={
+                "credential": credential,
+                "expected_environment": expected_environment,
+            },
+        )
+
+    def get_status(self, credential_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/credentials/{credential_id}/status")
+
+    def revoke(self, credential_id: str, reason_code: str = "ISSUER_ACTION") -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/credentials/{credential_id}/revoke",
+            body={"reason_code": reason_code},
+        )
+
+    def list(
+        self,
+        status: str | None = None,
+        credential_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        query_parts = [f"limit={limit}", f"offset={offset}"]
+        if status:
+            query_parts.append(f"status_filter={status}")
+        if credential_type:
+            query_parts.append(f"credential_type={credential_type}")
+        return self._client._request("GET", f"/v1/credentials?{'&'.join(query_parts)}")
+
+
+class IssuersClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def list(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/trust-registry/issuers")
+
+    def create(self, name: str) -> dict[str, Any]:
+        return self._client._request("POST", "/v1/trust-registry/issuers", body={"name": name})
+
+    def get(self, issuer_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/trust-registry/issuers/{issuer_id}")
+
+    def rotate_key(self, issuer_id: str, revoke_old_key: bool = False) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/trust-registry/issuers/{issuer_id}/rotate-key",
+            body={"revoke_old_key": revoke_old_key},
+        )
+
+    def suspend(self, issuer_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/trust-registry/issuers/{issuer_id}/suspend")
+
+    def revoke(self, issuer_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/trust-registry/issuers/{issuer_id}/revoke")
+

@@ -390,3 +390,56 @@ export interface GatewayIdentity {
   attestation_ttl_seconds: number;
 }
 
+export interface IssuerSigningKey {
+  key_id: string;
+  algorithm: string;
+  public_key: string;
+  fingerprint: string;
+  status: "ACTIVE" | "REVOKED" | "ROTATED";
+  created_at: string;
+  activated_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  rotated_from_key_id: string | null;
+}
+
+export interface CredentialIssuer {
+  id: string;
+  issuer_id: string;
+  organization_id: string;
+  name: string;
+  status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  created_at: string;
+  updated_at: string;
+  suspended_at: string | null;
+  revoked_at: string | null;
+  signing_keys?: IssuerSigningKey[];
+}
+
+export interface AgentCredential {
+  id: string;
+  credential_id: string;
+  credential_type: "AgentIdentityCredential" | "AgentCapabilityCredential" | string;
+  environment: "production" | "sandbox";
+  subject_agent_id: string;
+  status: "ACTIVE" | "REVOKED" | "EXPIRED" | "SUSPENDED";
+  issued_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  claims: Record<string, unknown>;
+  signing_key_id: string;
+}
+
+export interface CredentialVerificationResult {
+  verified: boolean;
+  credential_id: string;
+  credential_type: string;
+  issuer: string;
+  subject_organization_id: string;
+  subject_agent_id: string;
+  environment: string;
+  expires_at: string;
+  claims: Record<string, unknown>;
+}
+
+
