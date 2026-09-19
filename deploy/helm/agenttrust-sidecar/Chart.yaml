@@ -1,0 +1,11 @@
+apiVersion: v2
+name: agenttrust-sidecar
+description: Helm chart foundation for AgentTrust Enterprise Sidecar & Data Plane
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - agenttrust
+  - ai-security
+  - sidecar
+  - zero-trust

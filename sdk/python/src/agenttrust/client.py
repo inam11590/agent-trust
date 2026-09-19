@@ -1,5 +1,7 @@
 """AgentTrust HTTP client; API keys and local signing keys are never logged."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from decimal import Decimal
 import json
@@ -45,6 +47,7 @@ class AgentTrust:
         self.environment = "sandbox" if api_key.startswith("at_test_") else "production"
         self.credentials = CredentialsClient(self)
         self.issuers = IssuersClient(self)
+        self.gateways = GatewaysClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -454,4 +457,82 @@ class IssuersClient:
 
     def revoke(self, issuer_id: str) -> dict[str, Any]:
         return self._client._request("POST", f"/v1/trust-registry/issuers/{issuer_id}/revoke")
+
+
+class GatewaysClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def list(self, environment: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
+        query_parts = []
+        if environment:
+            query_parts.append(f"environment={environment}")
+        if status:
+            query_parts.append(f"status={status}")
+        query_str = f"?{'&'.join(query_parts)}" if query_parts else ""
+        return self._client._request("GET", f"/v1/gateways{query_str}")
+
+    def register(
+        self,
+        name: str,
+        deployment_type: str = "SELF_HOSTED_GATEWAY",
+        environment: str = "PRODUCTION",
+        offline_policy: str = "FAIL_CLOSED",
+        labels: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/gateways",
+            body={
+                "name": name,
+                "deployment_type": deployment_type,
+                "environment": environment,
+                "offline_policy": offline_policy,
+                "labels": labels or {},
+            },
+        )
+
+    def get(self, gateway_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/gateways/{gateway_id}")
+
+    def suspend(self, gateway_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/gateways/{gateway_id}/suspend")
+
+    def revoke(self, gateway_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/gateways/{gateway_id}/revoke")
+
+    def publish_config(
+        self,
+        environment: str = "production",
+        policies: list[dict[str, Any]] | None = None,
+        trusted_issuers: list[dict[str, Any]] | None = None,
+        credential_requirements: list[dict[str, Any]] | None = None,
+        revocations: list[dict[str, Any]] | None = None,
+        routing: dict[str, Any] | None = None,
+        validity_hours: int = 24,
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/gateways/config/publish",
+            body={
+                "environment": environment,
+                "policies": policies,
+                "trusted_issuers": trusted_issuers,
+                "credential_requirements": credential_requirements,
+                "revocations": revocations,
+                "routing": routing,
+                "validity_hours": validity_hours,
+            },
+        )
+
+    def rollback_config(self, target_version: int) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/gateways/config/rollback",
+            body={"target_version": target_version},
+        )
+
+    def config_history(self, environment: str = "production") -> list[dict[str, Any]]:
+        return self._client._request("GET", f"/v1/gateways/config/history?environment={environment}")
+
 

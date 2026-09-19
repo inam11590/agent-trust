@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-ai-agent-service
+  namespace: agenttrust
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: enterprise-ai-agent
+  ports:
+    - name: http-app
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sidecar-egress-policy
+  namespace: agenttrust
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: enterprise-ai-agent
+  policyTypes:
+    - Egress
+  egress:
+    # 1. Allow Control Plane sync
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agenttrust-control-plane
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8000
+    # 2. Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53

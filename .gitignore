@@ -63,3 +63,8 @@ Desktop.ini
 *.sql.gz
 .secrets/
 .issuer_keys/
+.sidecar_keys/
+.sidecar_cache/
+.control_plane_keys/
+scratch/
+

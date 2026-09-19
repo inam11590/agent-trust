@@ -33,6 +33,7 @@ from app.api.cross_organization_trust import router as cross_org_trust_router, p
 from app.api.cross_org_requests import router as cross_org_requests_router
 from app.api.atp_gateway import router as atp_gateway_router
 from app.api.trust_registry import router as trust_registry_router
+from app.api.enterprise_gateways import router as enterprise_gateways_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -109,6 +110,8 @@ def create_app() -> FastAPI:
     application.include_router(atp_gateway_router)
     application.include_router(trust_registry_router, prefix="/api/v1")
     application.include_router(trust_registry_router)
+    application.include_router(enterprise_gateways_router, prefix="/api/v1")
+    application.include_router(enterprise_gateways_router, prefix="/v1")
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)

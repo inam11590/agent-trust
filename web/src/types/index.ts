@@ -442,4 +442,64 @@ export interface CredentialVerificationResult {
   claims: Record<string, unknown>;
 }
 
+export type GatewayDeploymentType = "SELF_HOSTED_GATEWAY" | "SIDECAR" | "CLOUD_GATEWAY";
+export type GatewayStatus = "PENDING_ENROLLMENT" | "ACTIVE" | "OFFLINE" | "SUSPENDED" | "REVOKED";
+export type GatewayOfflinePolicy = "FAIL_CLOSED" | "LIMITED_OFFLINE";
+export type GatewayEnvironment = "PRODUCTION" | "SANDBOX";
+
+export interface EnterpriseGateway {
+  id: string;
+  organization_id: string;
+  name: string;
+  deployment_type: GatewayDeploymentType;
+  environment: GatewayEnvironment;
+  status: GatewayStatus;
+  offline_policy: GatewayOfflinePolicy;
+  public_key?: string | null;
+  public_key_fingerprint?: string | null;
+  current_config_version: number;
+  last_heartbeat_at?: string | null;
+  heartbeat_data?: Record<string, unknown> | null;
+  enrolled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GatewayRegistrationResult {
+  gateway_id: string;
+  name: string;
+  deployment_type: GatewayDeploymentType;
+  environment: GatewayEnvironment;
+  status: GatewayStatus;
+  enrollment_token: string;
+  enrollment_token_expires_at: string;
+  enrollment_command: string;
+}
+
+export interface GatewayConfigBundle {
+  id: string;
+  bundle_id: string;
+  organization_id: string;
+  version: number;
+  environment: GatewayEnvironment;
+  signing_key_id: string;
+  signature: string;
+  hash: string;
+  payload: Record<string, unknown>;
+  published_at: string;
+  created_at: string;
+}
+
+export interface GatewayHealthData {
+  uptime_seconds?: number;
+  evaluations_total?: number;
+  evaluations_approved?: number;
+  evaluations_rejected?: number;
+  cached_policies_count?: number;
+  clock_skew_ms?: number;
+  cpu_percent?: number;
+  memory_mb?: number;
+}
+
+
 

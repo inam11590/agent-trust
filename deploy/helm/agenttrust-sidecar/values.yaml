@@ -1,0 +1,30 @@
+image:
+  repository: ghcr.io/agenttrust/agenttrust-sidecar
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+controlPlaneUrl: "https://controlplane.agenttrust.internal"
+environment: "PRODUCTION"
+deploymentType: "SIDECAR"
+offlinePolicy: "FAIL_CLOSED"
+syncIntervalSeconds: 30
+heartbeatIntervalSeconds: 30
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+secretName: "agenttrust-enrollment-secret"

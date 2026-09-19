@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agenttrust-sidecar-config
+  namespace: agenttrust
+data:
+  AGENTTRUST_CONTROL_PLANE_URL: "https://controlplane.agenttrust.internal"
+  AGENTTRUST_ENVIRONMENT: "PRODUCTION"
+  AGENTTRUST_DEPLOYMENT_TYPE: "SIDECAR"
+  AGENTTRUST_OFFLINE_POLICY: "FAIL_CLOSED"
+  AGENTTRUST_SYNC_INTERVAL_SECONDS: "30"
+  AGENTTRUST_HEARTBEAT_INTERVAL_SECONDS: "30"
+  AGENTTRUST_HOST: "127.0.0.1"
+  AGENTTRUST_PORT: "8080"

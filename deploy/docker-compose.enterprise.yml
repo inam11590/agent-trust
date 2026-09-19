@@ -1,0 +1,46 @@
+version: "3.8"
+
+# Reference local enterprise deployment example:
+# - Control Plane backend
+# - AgentTrust Sidecar
+# - Demo Agent
+# - Mock Target
+
+services:
+  control-plane:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/agenttrust
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=production
+    depends_on:
+      - db
+      - redis
+
+  agenttrust-sidecar:
+    build:
+      context: ..
+      dockerfile: sidecar/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - AGENTTRUST_CONTROL_PLANE_URL=http://control-plane:8000
+      - AGENTTRUST_ENVIRONMENT=PRODUCTION
+      - AGENTTRUST_DEPLOYMENT_TYPE=SIDECAR
+      - AGENTTRUST_OFFLINE_POLICY=FAIL_CLOSED
+    depends_on:
+      - control-plane
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=agenttrust
+
+  redis:
+    image: redis:7-alpine

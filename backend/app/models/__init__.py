@@ -76,6 +76,14 @@ from app.models.trust_registry import (
     IssuerSigningKey,
     IssuerStatus,
 )
+from app.models.enterprise_gateway import (
+    EnterpriseGateway,
+    GatewayConfigBundle,
+    GatewayDeploymentType,
+    GatewayEnvironment,
+    GatewayOfflinePolicy,
+    GatewayStatus,
+)
 
 __all__ = [
     "Agent",
@@ -119,4 +127,6 @@ __all__ = [
     "ATPMessageDelivery", "ATPDeliveryStatus",
     "CredentialIssuer", "IssuerStatus", "IssuerSigningKey", "IssuerKeyStatus",
     "AgentCredential", "CredentialStatus", "CredentialRevocationReason",
+    "EnterpriseGateway", "GatewayConfigBundle", "GatewayDeploymentType",
+    "GatewayEnvironment", "GatewayOfflinePolicy", "GatewayStatus",
 ]
