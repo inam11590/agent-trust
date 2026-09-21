@@ -34,6 +34,7 @@ from app.api.cross_org_requests import router as cross_org_requests_router
 from app.api.atp_gateway import router as atp_gateway_router
 from app.api.trust_registry import router as trust_registry_router
 from app.api.enterprise_gateways import router as enterprise_gateways_router
+from app.api.reliability import router as reliability_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -112,6 +113,9 @@ def create_app() -> FastAPI:
     application.include_router(trust_registry_router)
     application.include_router(enterprise_gateways_router, prefix="/api/v1")
     application.include_router(enterprise_gateways_router, prefix="/v1")
+    application.include_router(reliability_router, prefix="/api/v1")
+    application.include_router(reliability_router, prefix="/v1")
+    application.include_router(reliability_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)
@@ -121,6 +125,24 @@ def create_app() -> FastAPI:
         supplied = request.headers.get("X-Request-ID", "")
         request_id = supplied if supplied.startswith("req_") and 8 <= len(supplied) <= 80 and supplied.replace("_", "").isalnum() else f"req_{secrets.token_hex(12)}"
         request.state.request_id = request_id; token = request_id_context.set(request_id); started = perf_counter()
+
+        settings = application.state.settings
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            is_standby = settings.region_role == "standby" or settings.region_fencing_enabled
+            if is_standby and not request.url.path.startswith("/health"):
+                response = JSONResponse(
+                    status_code=423,
+                    content={
+                        "error": "REGION_STANDBY_READ_ONLY",
+                        "message": f"Region '{settings.region_id}' is running in standby read-only mode.",
+                        "region_id": settings.region_id,
+                        "region_role": settings.region_role,
+                    },
+                )
+                response.headers["X-Request-ID"] = request_id
+                request_id_context.reset(token)
+                return response
+
         try:
             response = await call_next(request)
         except Exception:

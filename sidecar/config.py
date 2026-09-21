@@ -12,6 +12,9 @@ class SidecarConfig(BaseModel):
     control_plane_url: str = Field(
         default_factory=lambda: os.environ.get("AGENTTRUST_CONTROL_PLANE_URL", "http://127.0.0.1:8000")
     )
+    secondary_control_plane_url: Optional[str] = Field(
+        default_factory=lambda: os.environ.get("AGENTTRUST_SECONDARY_CONTROL_PLANE_URL", None)
+    )
     gateway_id: Optional[str] = Field(
         default_factory=lambda: os.environ.get("AGENTTRUST_GATEWAY_ID", None)
     )

@@ -1,0 +1,146 @@
+version: "3.8"
+
+# Demonstration High-Availability Deployment for AgentTrust (Step 24)
+# Demonstrates multi-replica API, multi-replica workers, reverse-proxy load balancer,
+# and shared stateful stores (PostgreSQL and Redis).
+# NOTE: In production, PostgreSQL and Redis should use managed HA services with cross-AZ replication.
+
+services:
+  lb:
+    image: nginx:alpine
+    container_name: agenttrust-ha-lb
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx-ha.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-1
+      - api-2
+    restart: unless-stopped
+
+  api-1:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agenttrust-ha-api-1
+    environment:
+      - APP_ENV=production
+      - REGION_ID=us-east-1
+      - REGION_ROLE=primary
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=agenttrust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_ha_secret
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_REQUIRED=true
+      - RATE_LIMIT_BACKEND=redis
+      - WEB_APP_URL=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-2:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agenttrust-ha-api-2
+    environment:
+      - APP_ENV=production
+      - REGION_ID=us-east-1
+      - REGION_ROLE=primary
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=agenttrust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_ha_secret
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_REQUIRED=true
+      - RATE_LIMIT_BACKEND=redis
+      - WEB_APP_URL=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-1:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agenttrust-ha-worker-1
+    command: ["python", "-m", "app.workers.notifications"]
+    environment:
+      - APP_ENV=production
+      - REGION_ID=us-east-1
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=agenttrust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_ha_secret
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-2:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agenttrust-ha-worker-2
+    command: ["python", "-m", "app.workers.notifications"]
+    environment:
+      - APP_ENV=production
+      - REGION_ID=us-east-1
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=agenttrust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_ha_secret
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: agenttrust-ha-postgres
+    environment:
+      - POSTGRES_DB=agenttrust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_ha_secret
+    volumes:
+      - postgres_ha_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agenttrust"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: agenttrust-ha-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_ha_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_ha_data:
+  redis_ha_data:

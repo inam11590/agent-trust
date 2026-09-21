@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     billing_price_starter_monthly: str = ""
     billing_price_business_monthly: str = ""
     billing_paddle_api_url: str = "https://sandbox-api.paddle.com"
+    region_id: str = "us-east-1"
+    region_role: Literal["primary", "standby"] = "primary"
+    region_fencing_enabled: bool = False
+    backup_storage_path: str = "backups"
+    backup_retention_days: int = Field(default=30, ge=1, le=365)
+    circuit_breaker_failure_threshold: int = Field(default=5, ge=1, le=50)
+    circuit_breaker_recovery_timeout_seconds: int = Field(default=30, ge=5, le=300)
+    secondary_control_plane_url: str = ""
 
     @field_validator("risk_medium_max")
     @classmethod

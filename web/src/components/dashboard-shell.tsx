@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeCheck, Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, LogOut, Menu, Network, Server, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
+import { Activity, BadgeCheck, Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, LogOut, Menu, Network, Server, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
 
 import { useAuth } from "@/contexts/auth-context";
 import { NotificationBell } from "@/components/notification-bell";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/reliability", label: "Reliability & HA", icon: Activity },
   { href: "/dashboard/gateway", label: "Protocol Gateway", icon: Waypoints },
   { href: "/dashboard/gateways", label: "Enterprise Gateways", icon: Server },
   { href: "/dashboard/agents", label: "My Agents", icon: Bot },

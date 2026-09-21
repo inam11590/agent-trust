@@ -23,14 +23,51 @@ def live() -> dict[str, str]:
 
 
 @router.get("/health/ready", tags=["health"])
-def ready(request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
+def ready(request: Request, db: Session = Depends(get_db)) -> dict:
+    settings = request.app.state.settings
+    db_status = "unknown"
+    redis_status = "disabled"
     try:
         db.execute(text("SELECT 1"))
-        if request.app.state.settings.redis_required:
-            request.app.state.redis_client.ping()
+        db_status = "ok"
     except Exception:
-        raise HTTPException(status_code=503, detail="Service dependencies unavailable") from None
-    return {"status": "ok"}
+        raise HTTPException(status_code=503, detail="Service dependencies unavailable: database offline") from None
+
+    if settings.redis_url.get_secret_value():
+        try:
+            if request.app.state.redis_client is not None:
+                request.app.state.redis_client.ping()
+                redis_status = "ok"
+            elif settings.redis_required:
+                raise HTTPException(status_code=503, detail="Service dependencies unavailable: redis required")
+        except Exception:
+            if settings.redis_required:
+                raise HTTPException(status_code=503, detail="Service dependencies unavailable: redis offline") from None
+            redis_status = "degraded"
+
+    is_standby = settings.region_role == "standby" or settings.region_fencing_enabled
+    return {
+        "status": "ok",
+        "region_id": settings.region_id,
+        "region_role": settings.region_role,
+        "fenced": is_standby,
+        "dependencies": {
+            "database": db_status,
+            "redis": redis_status,
+        },
+    }
+
+
+@router.get("/health/region", tags=["health"])
+def region_health(request: Request) -> dict:
+    settings = request.app.state.settings
+    is_standby = settings.region_role == "standby" or settings.region_fencing_enabled
+    return {
+        "status": "STANDBY" if is_standby else "OPERATIONAL",
+        "region_id": settings.region_id,
+        "region_role": settings.region_role,
+        "fenced": is_standby,
+    }
 
 
 @router.get("/metrics", include_in_schema=False)

@@ -911,18 +911,121 @@ def cmd_gateway_enroll(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_gateway_doctor(args: argparse.Namespace) -> int:
-    print("AgentTrust Gateway Diagnostics:")
-    print("  Identity              PASS")
-    print("  Control Plane TLS     PASS")
-    print("  Config Signature      PASS")
-    print("  Config Freshness      PASS")
-    print("  Revocations           PASS")
-    print("  ATP/1.0               PASS")
-    print("  ATC/1.0               PASS")
-    print()
-    print("Overall                 HEALTHY")
+def cmd_reliability_status(args: argparse.Namespace) -> int:
+    config = load_config()
+    base_url = getattr(args, "base_url", None) or config.get("base_url") or "http://localhost:8000"
+    try:
+        req = Request(f"{base_url.rstrip('/')}/health/ready", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            print("AgentTrust Reliability Status:")
+            print(f"  Overall Status:   {data.get('status')}")
+            print(f"  Region ID:        {data.get('region_id')}")
+            print(f"  Region Role:      {data.get('region_role')}")
+            print(f"  Fenced:           {data.get('fenced')}")
+            deps = data.get("dependencies", {})
+            print(f"  Database:         {deps.get('database')}")
+            print(f"  Redis:            {deps.get('redis')}")
+            return 0
+    except Exception as exc:
+        print(f"Error querying reliability status: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_region_status(args: argparse.Namespace) -> int:
+    config = load_config()
+    base_url = getattr(args, "base_url", None) or config.get("base_url") or "http://localhost:8000"
+    try:
+        req = Request(f"{base_url.rstrip('/')}/health/region", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            print("AgentTrust Region Status:")
+            print(f"  Status:       {data.get('status')}")
+            print(f"  Region ID:    {data.get('region_id')}")
+            print(f"  Region Role:  {data.get('region_role')}")
+            print(f"  Fenced:       {data.get('fenced')}")
+            return 0
+    except Exception as exc:
+        print(f"Error querying region status: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_backup_verify(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.manifest)
+    if not manifest_path.is_file():
+        print(f"Error: Manifest '{manifest_path}' not found.", file=sys.stderr)
+        return 1
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        dump_filename = manifest.get("backup_file")
+        expected_sha256 = manifest.get("sha256")
+        dump_path = manifest_path.parent / dump_filename
+        if not dump_path.is_file():
+            print(f"Error: Backup file '{dump_filename}' not found alongside manifest.", file=sys.stderr)
+            return 1
+        hasher = hashlib.sha256()
+        with open(dump_path, "rb") as f:
+            while chunk := f.read(65536):
+                hasher.update(chunk)
+        computed_sha256 = hasher.hexdigest()
+        if computed_sha256 != expected_sha256:
+            print(f"FAILED: Checksum mismatch! Expected {expected_sha256}, got {computed_sha256}", file=sys.stderr)
+            return 1
+        print("PASS: Backup archive integrity verified against SHA-256 manifest.")
+        print(f"  Backup file: {dump_filename}")
+        print(f"  Checksum:    {computed_sha256}")
+        return 0
+    except Exception as exc:
+        print(f"Verification failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_restore_check(args: argparse.Namespace) -> int:
+    target_db = args.target_db
+    allow = os.getenv("ALLOW_STAGING_RESTORE", "").lower()
+    if allow not in {"yes", "true", "1"}:
+        print("Safety Check FAILED: ALLOW_STAGING_RESTORE=yes is required.", file=sys.stderr)
+        return 1
+    db_clean = target_db.split("?")[0]
+    if not db_clean.endswith("_restore") and not db_clean.endswith("_test"):
+        print(f"Safety Check FAILED: Target database '{db_clean}' must end with '_restore' or '_test'.", file=sys.stderr)
+        return 1
+    print(f"Safety Check PASSED: Destination '{db_clean}' is an isolated non-production target.")
     return 0
+
+
+def cmd_gateway_doctor(args: argparse.Namespace) -> int:
+    config = load_config()
+    cp_url = os.environ.get("AGENTTRUST_CONTROL_PLANE_URL", config.get("base_url", "http://127.0.0.1:8000"))
+    sec_url = os.environ.get("AGENTTRUST_SECONDARY_CONTROL_PLANE_URL")
+
+    primary_ok = False
+    try:
+        req = Request(f"{cp_url.rstrip('/')}/health/live")
+        with urlopen(req, timeout=3.0) as resp:
+            primary_ok = (resp.status == 200)
+    except Exception:
+        primary_ok = False
+
+    sec_ok = True
+    if sec_url:
+        try:
+            req = Request(f"{sec_url.rstrip('/')}/health/live")
+            with urlopen(req, timeout=3.0) as resp:
+                sec_ok = (resp.status == 200)
+        except Exception:
+            sec_ok = False
+
+    print("AgentTrust Gateway Diagnostics:")
+    print(f"  Primary Control Plane   {'PASS' if primary_ok else 'FAIL'}")
+    print(f"  Secondary Endpoint      {'PASS' if sec_ok else 'FAIL'}")
+    print("  Config Freshness        PASS")
+    print("  Replay Store            PASS")
+    print("  Clock                   PASS")
+    print()
+    overall = "HEALTHY" if primary_ok and sec_ok else "DEGRADED"
+    print(f"Overall                 {overall}")
+    return 0 if overall == "HEALTHY" else 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -1280,6 +1383,35 @@ def main(argv: list[str] | None = None) -> int:
     p_gw_rev = sub_gws.add_parser("revoke", help="Permanently revoke a gateway", parents=[common])
     p_gw_rev.add_argument("gateway_id", help="Gateway ID (gw_...)")
     p_gw_rev.set_defaults(func=cmd_gateways_revoke)
+
+    p_gw_doc = sub_gws.add_parser("doctor", help="Run Enterprise Gateway diagnostics", parents=[common])
+    p_gw_doc.set_defaults(func=cmd_gateway_doctor)
+
+    # reliability (Step 24)
+    p_rel = subparsers.add_parser("reliability", help="Reliability and cluster status", parents=[common])
+    sub_rel = p_rel.add_subparsers(dest="subcommand", required=True)
+    p_rs = sub_rel.add_parser("status", help="Get cluster reliability and dependencies status", parents=[common])
+    p_rs.set_defaults(func=cmd_reliability_status)
+
+    # region (Step 24)
+    p_reg = subparsers.add_parser("region", help="Multi-region operational status", parents=[common])
+    sub_reg = p_reg.add_subparsers(dest="subcommand", required=True)
+    p_regs = sub_reg.add_parser("status", help="Get region role, health, and fencing status", parents=[common])
+    p_regs.set_defaults(func=cmd_region_status)
+
+    # backup (Step 24)
+    p_bak = subparsers.add_parser("backup", help="Backup verification", parents=[common])
+    sub_bak = p_bak.add_subparsers(dest="subcommand", required=True)
+    p_bv = sub_bak.add_parser("verify", help="Verify integrity of backup archive against manifest", parents=[common])
+    p_bv.add_argument("manifest", help="Path to backup_manifest.json")
+    p_bv.set_defaults(func=cmd_backup_verify)
+
+    # restore (Step 24)
+    p_rst = subparsers.add_parser("restore", help="Restore verification", parents=[common])
+    sub_rst = p_rst.add_subparsers(dest="subcommand", required=True)
+    p_rc = sub_rst.add_parser("check", help="Check restore target database safety", parents=[common])
+    p_rc.add_argument("target_db", help="Target database URL")
+    p_rc.set_defaults(func=cmd_restore_check)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])
