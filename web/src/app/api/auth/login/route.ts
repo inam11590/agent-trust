@@ -23,10 +23,11 @@ export async function POST(request: Request) {
     }
     if (typeof body.access_token !== "string") return NextResponse.json({ detail: "Invalid login response" }, { status: 502 });
 
+    const isHttps = request.url.startsWith("https://") || request.headers.get("x-forwarded-proto") === "https";
     const response = NextResponse.json({ authenticated: true });
     response.cookies.set(SESSION_COOKIE, body.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
       sameSite: "lax",
       priority: "high",
       path: "/",

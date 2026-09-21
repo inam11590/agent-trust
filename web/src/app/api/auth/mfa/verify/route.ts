@@ -14,9 +14,11 @@ export async function POST(request: Request) {
     const body = await upstream.json();
     if (!upstream.ok) return NextResponse.json(body, { status: upstream.status });
     if (typeof body.access_token !== "string") return NextResponse.json({ detail: "Invalid MFA response" }, { status: 502 });
+
+    const isHttps = request.url.startsWith("https://") || request.headers.get("x-forwarded-proto") === "https";
     const response = NextResponse.json({ authenticated: true });
     response.cookies.set(SESSION_COOKIE, body.access_token, {
-      httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax",
+      httpOnly: true, secure: isHttps, sameSite: "lax",
       priority: "high", path: "/", maxAge: body.expires_in,
     });
     response.headers.set("Cache-Control", "no-store");
