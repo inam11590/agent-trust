@@ -49,6 +49,7 @@ class AgentTrust:
         self.issuers = IssuersClient(self)
         self.gateways = GatewaysClient(self)
         self.security = SecurityClient(self)
+        self.policies = PoliciesClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -597,6 +598,93 @@ class SecurityClient:
 
     def list_exports(self) -> list[dict[str, Any]]:
         return self._client._request("GET", "/v1/security/exports")
+
+
+class PoliciesClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def list(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/policies")
+
+    def get(self, policy_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/policies/{policy_id}")
+
+    def create(
+        self,
+        name: str,
+        description: str | None = None,
+        category: str = "General",
+        initial_yaml_source: str | None = None,
+        target: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "name": name,
+            "description": description,
+            "category": category,
+            "initial_yaml_source": initial_yaml_source,
+            "target": target or {},
+        }
+        return self._client._request("POST", "/v1/policies", body=body)
+
+    def validate(self, yaml_source: str) -> dict[str, Any]:
+        return self._client._request("POST", "/v1/policies/validate", body={"yaml_source": yaml_source})
+
+    def simulate(
+        self,
+        context: dict[str, Any],
+        yaml_source: str | None = None,
+        policy_id: str | None = None,
+        version_number: int | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "context": context,
+            "yaml_source": yaml_source,
+            "policy_id": policy_id,
+            "version_number": version_number,
+        }
+        return self._client._request("POST", "/v1/policies/simulate", body=body)
+
+    def list_versions(self, policy_id: str) -> list[dict[str, Any]]:
+        return self._client._request("GET", f"/v1/policies/{policy_id}/versions")
+
+    def create_version(self, policy_id: str, yaml_source: str, change_description: str | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/policies/{policy_id}/versions",
+            body={"yaml_source": yaml_source, "change_description": change_description},
+        )
+
+    def publish_version(self, policy_id: str, version_number: int, sync_gateways: bool = True) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/policies/{policy_id}/publish",
+            body={"version_number": version_number, "sync_gateways": sync_gateways},
+        )
+
+    def rollback_version(self, policy_id: str, target_version: int, reason: str, sync_gateways: bool = True) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/policies/{policy_id}/rollback",
+            body={"target_version": target_version, "reason": reason, "sync_gateways": sync_gateways},
+        )
+
+    def diff(self, policy_id: str, v1: int, v2: int) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/policies/{policy_id}/diff?v1={v1}&v2={v2}")
+
+    def impact(
+        self,
+        policy_id: str,
+        candidate_yaml_source: str,
+        baseline_version: int | None = None,
+        sample_requests: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "candidate_yaml_source": candidate_yaml_source,
+            "baseline_version": baseline_version,
+            "sample_requests": sample_requests,
+        }
+        return self._client._request("POST", f"/v1/policies/{policy_id}/impact", body=body)
 
 
 

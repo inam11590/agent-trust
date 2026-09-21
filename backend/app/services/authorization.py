@@ -256,11 +256,73 @@ def _complete_or_queue(
             delegation_id=delegation_id,
             parent_agent_id=parent_agent_id,
         )
+
+    # APL/1.0 Policy Engine Evaluation
+    apl_forced = False
+    apl_reason = None
+    if organization_id:
+        try:
+            from app.models.policy import Policy, PolicyVersion
+            from app.services.apl.evaluator import evaluate_apl_policy
+            published_apl = db.execute(
+                select(PolicyVersion)
+                .join(Policy, PolicyVersion.policy_id == Policy.id)
+                .where(
+                    Policy.organization_id == organization_id,
+                    PolicyVersion.is_active.is_(True),
+                )
+            ).scalars().all()
+            if published_apl:
+                apl_context = {
+                    "agent": {
+                        "id": getattr(eval_agent, "agent_identifier", None) or str(eval_agent.id),
+                        "type": getattr(eval_agent, "agent_type", "default"),
+                        "organization_id": str(organization_id),
+                        "status": eval_agent.status.value if eval_agent.status else "ACTIVE",
+                    },
+                    "action": request.action,
+                    "resource": request.resource,
+                    "input": {
+                        "amount": float(request.amount) if request.amount is not None else None,
+                        "currency": request.currency,
+                    },
+                    "risk": {
+                        "score": risk.score if risk else None,
+                        "level": risk.level.value if risk else None,
+                    },
+                    "environment": environment,
+                    "time": {
+                        "hour": requested_at.hour,
+                        "day_of_week": requested_at.isoweekday(),
+                    },
+                    "delegation": {
+                        "depth": 1 if delegation_id else 0,
+                        "active": bool(delegation_id),
+                    },
+                }
+                for pv in published_apl:
+                    if isinstance(pv.compiled_ast, dict):
+                        eval_res = evaluate_apl_policy(pv.compiled_ast, apl_context)
+                        if eval_res.decision == "DENY":
+                            return _save_audit_log(
+                                db, owner_id, request,
+                                _rejected(f"Request rejected by APL/1.0 policy: {eval_res.explanation}", eval_agent.id, permission.id),
+                                requested_at, request_id=request_id, organization_id=organization_id, risk=risk,
+                                environment=environment,
+                                delegation_id=delegation_id,
+                                parent_agent_id=parent_agent_id,
+                            )
+                        elif eval_res.decision == "REQUIRE_APPROVAL":
+                            apl_forced = True
+                            apl_reason = eval_res.explanation
+        except Exception:
+            pass
+
     risk_forced = risk.recommendation == RiskAction.REQUIRE_APPROVAL
-    if permission.requires_approval or force_approval or risk_forced or organization_action == "REQUIRE_APPROVAL":
+    if permission.requires_approval or force_approval or risk_forced or organization_action == "REQUIRE_APPROVAL" or apl_forced:
         return _save_pending_request(
-            db, owner_id, request, permission, requested_at, request_id, risk, risk_forced,
-            reason=organization_reason, environment=environment,
+            db, owner_id, request, permission, requested_at, request_id, risk, (risk_forced or apl_forced),
+            reason=apl_reason or organization_reason, environment=environment,
             delegation_id=delegation_id,
             parent_agent_id=parent_agent_id,
             acting_agent=eval_agent,

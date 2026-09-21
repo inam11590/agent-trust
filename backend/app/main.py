@@ -37,6 +37,7 @@ from app.api.enterprise_gateways import router as enterprise_gateways_router
 from app.api.reliability import router as reliability_router
 from app.api.security_hardening import router as security_hardening_router
 from app.api.soc import router as soc_router
+from app.api.policies import router as policies_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -131,6 +132,9 @@ def create_app() -> FastAPI:
     application.include_router(soc_router, prefix="/api/v1/security")
     application.include_router(soc_router, prefix="/v1/security")
     application.include_router(soc_router)
+    application.include_router(policies_router, prefix="/api/v1")
+    application.include_router(policies_router, prefix="/v1")
+    application.include_router(policies_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)

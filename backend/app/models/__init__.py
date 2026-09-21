@@ -91,6 +91,13 @@ from app.models.soc import (
     SecurityExportDestination,
     SecurityInvestigation,
 )
+from app.models.policy import (
+    Policy,
+    PolicyBinding,
+    PolicyTestCase,
+    PolicyVersion,
+    generate_policy_id,
+)
 
 __all__ = [
     "Agent",
@@ -138,4 +145,5 @@ __all__ = [
     "GatewayEnvironment", "GatewayOfflinePolicy", "GatewayStatus",
     "DetectionRule", "SecurityAlert", "SecurityExportDestination",
     "SecurityExportDeadLetter", "SecurityInvestigation",
+    "Policy", "PolicyVersion", "PolicyBinding", "PolicyTestCase", "generate_policy_id",
 ]

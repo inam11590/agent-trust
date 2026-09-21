@@ -148,10 +148,79 @@ def evaluate_local_request(
         }
 
     # 6. Policy Check
-    policies = cfg.get("policies") or []
+    # Check APL/1.0 policies if present in configuration bundle
+    apl_policies = cfg.get("apl_policies") or [p for p in cfg.get("policies", []) if isinstance(p, dict) and p.get("version") == "APL/1.0"]
+    if apl_policies:
+        apl_context = {
+            "agent": {"id": agent_id},
+            "agent.id": agent_id,
+            "action": action,
+            "resource": resource,
+            "input": {"amount": amount},
+            "input.amount": amount,
+        }
+        for apl_ast in apl_policies:
+            rules = apl_ast.get("rules", [])
+            for r in rules:
+                when = r.get("when") or r.get("conditions")
+                rule_matched = True
+                if when:
+                    # Check conditions in 'all' list
+                    all_conds = when.get("all", [when] if "field" in when else [])
+                    for cond in all_conds:
+                        f = cond.get("field")
+                        op = cond.get("operator", "eq")
+                        expected = cond.get("value")
+                        actual = apl_context.get(f)
+                        if f and f.startswith("input.") and actual is None:
+                            actual = apl_context.get("input", {}).get(f.split(".", 1)[1])
+                        
+                        m = False
+                        if op == "eq":
+                            m = (actual == expected)
+                        elif op == "gt" and actual is not None and expected is not None:
+                            m = (float(actual) > float(expected))
+                        elif op == "gte" and actual is not None and expected is not None:
+                            m = (float(actual) >= float(expected))
+                        elif op == "lt" and actual is not None and expected is not None:
+                            m = (float(actual) < float(expected))
+                        elif op == "lte" and actual is not None and expected is not None:
+                            m = (float(actual) <= float(expected))
+                        elif op == "in" and isinstance(expected, list):
+                            m = (actual in expected)
+                        elif op == "starts_with" and actual is not None:
+                            m = str(actual).startswith(str(expected))
+                        elif op == "exists":
+                            m = (actual is not None)
+                        if not m:
+                            rule_matched = False
+                            break
+                if rule_matched:
+                    effect = str(r.get("effect", "")).upper()
+                    if effect == "DENY":
+                        state.record_request(LocalAuthorizationResult.REJECTED, was_offline=is_offline)
+                        return {
+                            "decision": LocalAuthorizationResult.REJECTED,
+                            "code": "APL_POLICY_DENY",
+                            "reason": f"Denied by APL/1.0 policy rule '{r.get('id')}': {r.get('description', 'Policy Deny')}",
+                        }
+                    elif effect == "REQUIRE_APPROVAL":
+                        state.record_request(LocalAuthorizationResult.PENDING_HUMAN_APPROVAL, was_offline=is_offline)
+                        return {
+                            "decision": LocalAuthorizationResult.PENDING_HUMAN_APPROVAL,
+                            "code": "APL_POLICY_REQUIRE_APPROVAL",
+                            "reason": f"Approval required by APL/1.0 policy rule '{r.get('id')}': {r.get('description', 'Policy Approval Required')}",
+                            "approval_required": True,
+                        }
+
+    # Fallback to standard enterprise policies
+    policies = [p for p in (cfg.get("policies") or []) if isinstance(p, dict) and p.get("version") != "APL/1.0"]
     allowed = False
-    if not policies:
+    if not policies and not apl_policies:
         # If no explicit policies defined, default allow if registered
+        allowed = True
+    elif not policies and apl_policies:
+        # If APL policies ran and did not deny/require approval, consider allowed
         allowed = True
     else:
         for pol in policies:

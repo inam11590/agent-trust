@@ -18,6 +18,7 @@ const navigation = [
   { href: "/dashboard/delegations", label: "Delegations", icon: GitFork },
   { href: "/dashboard/trust", label: "Partner Trust", icon: Network },
   { href: "/dashboard/trust-registry", label: "Trust Registry", icon: BadgeCheck },
+  { href: "/dashboard/policies", label: "Policies (APL)", icon: Braces },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: FileClock },
   { href: "/dashboard/risk", label: "Risk", icon: ShieldAlert },
   { href: "/dashboard/developers", label: "Developers", icon: Braces },

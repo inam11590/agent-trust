@@ -1166,6 +1166,94 @@ def cmd_security_overview(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_policies_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.policies.list()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_policies_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.policies.get(args.policy_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_policies_validate(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    source = ""
+    if getattr(args, "file", None):
+        with open(args.file, "r", encoding="utf-8") as f:
+            source = f.read()
+    elif getattr(args, "yaml", None):
+        source = args.yaml
+    else:
+        print("Error: Either --file or --yaml must be provided", file=sys.stderr)
+        return 1
+
+    res = client.policies.validate(source)
+    print(json.dumps(res, indent=2))
+    return 0 if res.get("is_valid") else 1
+
+
+def cmd_policies_simulate(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    context = {}
+    if getattr(args, "context", None):
+        if args.context.startswith("{"):
+            context = json.loads(args.context)
+        else:
+            with open(args.context, "r", encoding="utf-8") as f:
+                context = json.load(f)
+
+    yaml_source = None
+    if getattr(args, "file", None):
+        with open(args.file, "r", encoding="utf-8") as f:
+            yaml_source = f.read()
+
+    res = client.policies.simulate(
+        context=context,
+        yaml_source=yaml_source,
+        policy_id=getattr(args, "policy_id", None),
+        version_number=getattr(args, "version", None),
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_policies_publish(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.policies.publish_version(
+        policy_id=args.policy_id,
+        version_number=args.version,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_policies_rollback(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.policies.rollback_version(
+        policy_id=args.policy_id,
+        target_version=args.target_version,
+        reason=args.reason,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_policies_diff(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.policies.diff(
+        policy_id=args.policy_id,
+        v1=args.v1,
+        v2=args.v2,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -1520,6 +1608,46 @@ def main(argv: list[str] | None = None) -> int:
     sub_sx = p_sx.add_subparsers(dest="subaction", required=True)
     p_sxl = sub_sx.add_parser("list", help="List export destinations", parents=[common])
     p_sxl.set_defaults(func=cmd_security_exports_list)
+
+    # policies (Step 27 APL/1.0 Policy-as-Code)
+    p_pol = subparsers.add_parser("policies", help="APL/1.0 Policy-as-Code, validation, simulation, and lifecycle", parents=[common])
+    sub_pol = p_pol.add_subparsers(dest="subcommand", required=True)
+
+    p_poll = sub_pol.add_parser("list", help="List registered enterprise policies", parents=[common])
+    p_poll.set_defaults(func=cmd_policies_list)
+
+    p_polg = sub_pol.add_parser("get", help="Get policy details", parents=[common])
+    p_polg.add_argument("policy_id", help="Policy ID (pol_...)")
+    p_polg.set_defaults(func=cmd_policies_get)
+
+    p_polv = sub_pol.add_parser("validate", help="Validate an APL/1.0 policy document", parents=[common])
+    p_polv.add_argument("--file", help="Path to policy YAML/JSON file")
+    p_polv.add_argument("--yaml", help="Raw YAML string")
+    p_polv.set_defaults(func=cmd_policies_validate)
+
+    p_pols = sub_pol.add_parser("simulate", help="Simulate policy execution without side-effects", parents=[common])
+    p_pols.add_argument("--context", required=True, help="Context JSON string or path to JSON context file")
+    p_pols.add_argument("--file", help="Optional path to candidate policy YAML file")
+    p_pols.add_argument("--policy-id", help="Policy ID")
+    p_pols.add_argument("--version", type=int, help="Version number to simulate against")
+    p_pols.set_defaults(func=cmd_policies_simulate)
+
+    p_polp = sub_pol.add_parser("publish", help="Publish a policy version", parents=[common])
+    p_polp.add_argument("policy_id", help="Policy ID (pol_...)")
+    p_polp.add_argument("--version", type=int, required=True, help="Version number to publish")
+    p_polp.set_defaults(func=cmd_policies_publish)
+
+    p_polr = sub_pol.add_parser("rollback", help="Rollback policy to previous version", parents=[common])
+    p_polr.add_argument("policy_id", help="Policy ID (pol_...)")
+    p_polr.add_argument("--target-version", type=int, required=True, help="Target version to roll back to")
+    p_polr.add_argument("--reason", required=True, help="Rollback audit reason")
+    p_polr.set_defaults(func=cmd_policies_rollback)
+
+    p_pold = sub_pol.add_parser("diff", help="Diff two policy versions", parents=[common])
+    p_pold.add_argument("policy_id", help="Policy ID (pol_...)")
+    p_pold.add_argument("--v1", type=int, required=True, help="Baseline version number")
+    p_pold.add_argument("--v2", type=int, required=True, help="Target version number")
+    p_pold.set_defaults(func=cmd_policies_diff)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

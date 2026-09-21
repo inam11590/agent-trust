@@ -456,6 +456,23 @@ def build_and_publish_config(
                 "required_credential_types": target_policy.required_credential_types or [],
             })
 
+        # Include active published APL/1.0 policies
+        try:
+            from app.models.policy import Policy, PolicyVersion
+            published_apl = db.execute(
+                select(PolicyVersion)
+                .join(Policy, PolicyVersion.policy_id == Policy.id)
+                .where(
+                    Policy.organization_id == org_id,
+                    PolicyVersion.is_active.is_(True),
+                )
+            ).scalars().all()
+            for pv in published_apl:
+                if isinstance(pv.compiled_ast, dict):
+                    policies.append(pv.compiled_ast)
+        except Exception:
+            pass
+
     trusted_issuers = req.trusted_issuers or []
     if not trusted_issuers:
         issuers = db.scalars(
