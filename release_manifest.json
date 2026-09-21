@@ -1,0 +1,38 @@
+{
+  "manifest_version": "1.0",
+  "platform": "AgentTrust",
+  "timestamp": "2026-09-21T10:15:31.583353+00:00",
+  "artifacts_count": 6,
+  "artifacts": [
+    {
+      "path": "backend/Dockerfile",
+      "sha256": "c9ad6805759bb1195d94da77c1342b45586e1727ea6e03cf301a07c403ad7f85",
+      "size_bytes": 1656
+    },
+    {
+      "path": "sidecar/Dockerfile",
+      "sha256": "8ccf6742904298f8620d54ccb7f65693d13e4905510b45a81f41437ef984257c",
+      "size_bytes": 1098
+    },
+    {
+      "path": "backend/requirements.txt",
+      "sha256": "13e7cae88ecd5dd90b5778c78a0b7bd8fff27a27195a82f6b0749bfc065a7aa0",
+      "size_bytes": 360
+    },
+    {
+      "path": "web/package.json",
+      "sha256": "9c4786c690a362f406a1dae74a4a6356da3d5f6c28952bb47888eac989f41426",
+      "size_bytes": 835
+    },
+    {
+      "path": "sdk/node/package.json",
+      "sha256": "d7786aaf18467a4e5a86c3d7f805629a543ed315b414139b769e6e2181ad7194",
+      "size_bytes": 271
+    },
+    {
+      "path": "sdk/python/pyproject.toml",
+      "sha256": "eb5c13e23dab883ae38ad98a393d1fc87fdffeccb03c205194bee74e61990550",
+      "size_bytes": 352
+    }
+  ]
+}

@@ -35,6 +35,7 @@ from app.api.atp_gateway import router as atp_gateway_router
 from app.api.trust_registry import router as trust_registry_router
 from app.api.enterprise_gateways import router as enterprise_gateways_router
 from app.api.reliability import router as reliability_router
+from app.api.security_hardening import router as security_hardening_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -116,6 +117,8 @@ def create_app() -> FastAPI:
     application.include_router(reliability_router, prefix="/api/v1")
     application.include_router(reliability_router, prefix="/v1")
     application.include_router(reliability_router)
+    application.include_router(security_hardening_router, prefix="/api")
+    application.include_router(security_hardening_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)
@@ -127,6 +130,36 @@ def create_app() -> FastAPI:
         request.state.request_id = request_id; token = request_id_context.set(request_id); started = perf_counter()
 
         settings = application.state.settings
+
+        # Check Content-Length to prevent oversized payload DoS
+        content_length_header = request.headers.get("Content-Length")
+        if content_length_header:
+            try:
+                cl = int(content_length_header)
+                if cl > 10 * 1024 * 1024:
+                    response = JSONResponse(
+                        status_code=413,
+                        content={"error": "REQUEST_TOO_LARGE", "message": "Request payload exceeds maximum allowed size (10MB)."},
+                    )
+                    response.headers["X-Request-ID"] = request_id
+                    request_id_context.reset(token)
+                    return response
+            except ValueError:
+                pass
+
+        # Verify Host header in production to prevent HTTP Host header poisoning
+        if settings.app_env == "production" and settings.trusted_hosts:
+            host_header = request.headers.get("host", "").split(":")[0]
+            trusted = [h.strip() for h in settings.trusted_hosts.split(",") if h.strip()]
+            if host_header and host_header not in trusted:
+                response = JSONResponse(
+                    status_code=400,
+                    content={"error": "INVALID_HOST", "message": f"Host '{host_header}' is untrusted."},
+                )
+                response.headers["X-Request-ID"] = request_id
+                request_id_context.reset(token)
+                return response
+
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             is_standby = settings.region_role == "standby" or settings.region_fencing_enabled
             if is_standby and not request.url.path.startswith("/health"):

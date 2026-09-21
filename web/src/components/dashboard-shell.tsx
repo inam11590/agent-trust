@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BadgeCheck, Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, LogOut, Menu, Network, Server, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
+import { Activity, BadgeCheck, Bot, Braces, ChevronDown, CreditCard, FileClock, GitFork, KeyRound, LayoutDashboard, Lock, LogOut, Menu, Network, Server, Settings, ShieldAlert, ShieldCheck, Users, Waypoints, X } from "lucide-react";
 
 import { useAuth } from "@/contexts/auth-context";
 import { NotificationBell } from "@/components/notification-bell";
@@ -25,6 +25,7 @@ const navigation = [
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/security", label: "Security", icon: ShieldCheck },
+  { href: "/dashboard/security/hardening", label: "Hardening & KMS", icon: Lock },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {

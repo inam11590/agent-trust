@@ -111,8 +111,15 @@ class Settings(BaseSettings):
     backup_storage_path: str = "backups"
     backup_retention_days: int = Field(default=30, ge=1, le=365)
     circuit_breaker_failure_threshold: int = Field(default=5, ge=1, le=50)
-    circuit_breaker_recovery_timeout_seconds: int = Field(default=30, ge=5, le=300)
     secondary_control_plane_url: str = ""
+    debug: bool = Field(default=False, validation_alias=AliasChoices("DEBUG", "DEBUG_MODE"))
+    allow_insecure_tls: bool = Field(default=False, validation_alias=AliasChoices("ALLOW_INSECURE_TLS"))
+    sandbox_security_mode: bool = Field(default=False, validation_alias=AliasChoices("SANDBOX_SECURITY_MODE"))
+    max_atp_message_size_bytes: int = Field(default=2097152, ge=1024, le=10485760)
+    max_credential_size_bytes: int = Field(default=1048576, ge=1024, le=5242880)
+    trusted_hosts: str = Field(default="127.0.0.1,localhost", validation_alias=AliasChoices("TRUSTED_HOSTS", "ALLOWED_HOSTS"))
+    secret_provider_type: Literal["env", "vault"] = "env"
+    key_provider_type: Literal["local", "kms_mock", "cloud_kms"] = "local"
 
     @field_validator("risk_medium_max")
     @classmethod
@@ -153,7 +160,19 @@ class Settings(BaseSettings):
         if self.app_env not in {"staging", "production"}:
             return self
         missing = []
-        if len(self.jwt_secret_key.get_secret_value().encode()) < 32: missing.append("JWT_SECRET_KEY")
+        if self.app_env == "production" and self.debug:
+            missing.append("DEBUG mode must be disabled in production")
+        if self.app_env == "production" and self.allow_insecure_tls:
+            missing.append("ALLOW_INSECURE_TLS must be False in production")
+        if self.app_env == "production" and self.sandbox_security_mode:
+            missing.append("SANDBOX_SECURITY_MODE cannot be enabled in production")
+
+        secret_val = self.jwt_secret_key.get_secret_value()
+        if len(secret_val.encode()) < 32:
+            missing.append("JWT_SECRET_KEY")
+        elif self.app_env == "production" and any(bad in secret_val.lower() for bad in ["dev", "test", "insecure", "changeme", "default"]):
+            missing.append("JWT_SECRET_KEY cannot use development/test secret in production")
+
         if not self.mfa_encryption_key.get_secret_value(): missing.append("MFA_ENCRYPTION_KEY")
         if not self.database_configured: missing.append("DATABASE_URL or PostgreSQL credentials")
         elif self.database_url.drivername != "postgresql+psycopg": missing.append("PostgreSQL DATABASE_URL")
@@ -167,9 +186,11 @@ class Settings(BaseSettings):
         if self.billing_provider not in {"test", "paddle_sandbox"}: missing.append("BILLING_PROVIDER=test or paddle_sandbox")
         if not self.web_app_url.startswith("https://"): missing.append("HTTPS WEB_APP_URL")
         if not self.api_public_url.startswith("https://"): missing.append("HTTPS API_PUBLIC_URL")
+        if self.app_env == "production" and ("*" in self.cors_allowed_origins):
+            missing.append("CORS wildcard '*' is prohibited in production")
         if not self.allowed_origins or any(not origin.startswith("https://") for origin in self.allowed_origins): missing.append("HTTPS CORS_ALLOWED_ORIGINS")
         if missing:
-            raise ValueError("Unsafe deployment configuration; set: " + ", ".join(missing))
+            raise ValueError("PRODUCTION_SECURITY_CONFIGURATION_INVALID: " + ", ".join(missing))
         return self
 
     @property
@@ -206,5 +227,5 @@ class Settings(BaseSettings):
     def allowed_origins(self) -> list[str]:
         origins = [value.strip().rstrip("/") for value in self.cors_allowed_origins.split(",") if value.strip()]
         if self.app_env == "production" and "*" in origins:
-            raise ValueError("CORS wildcard origins are not allowed in production")
+            raise ValueError("PRODUCTION_SECURITY_CONFIGURATION_INVALID: CORS wildcard origins are not allowed in production")
         return origins

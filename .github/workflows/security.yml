@@ -1,0 +1,92 @@
+name: Security & Supply Chain Hardening
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly security audit every Monday at 04:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret & Credential Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Repository Secret Scanner Script
+        run: |
+          python3 scripts/scan_secrets.py
+
+  dependency-scan:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Audit Python Dependencies (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --ignore-vuln CVE-TEST-MOCK || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "web/package-lock.json"
+
+      - name: Audit Node.js Dependencies (npm audit)
+        run: |
+          cd web && npm audit --audit-level=high || true
+
+  sbom-and-manifest:
+    name: SBOM & Release Manifest Generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          python3 scripts/generate_sbom.py --output sbom.json
+
+      - name: Generate Release Manifest with SHA-256 Digests
+        run: |
+          python3 scripts/release_manifest.py --output release_manifest.json
+
+      - name: Verify Manifest Integrity
+        run: |
+          python3 scripts/release_manifest.py --verify release_manifest.json
+
+      - name: Upload Supply Chain Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-bundle
+          path: |
+            sbom.json
+            release_manifest.json
