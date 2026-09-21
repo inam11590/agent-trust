@@ -84,6 +84,13 @@ from app.models.enterprise_gateway import (
     GatewayOfflinePolicy,
     GatewayStatus,
 )
+from app.models.soc import (
+    DetectionRule,
+    SecurityAlert,
+    SecurityExportDeadLetter,
+    SecurityExportDestination,
+    SecurityInvestigation,
+)
 
 __all__ = [
     "Agent",
@@ -129,4 +136,6 @@ __all__ = [
     "AgentCredential", "CredentialStatus", "CredentialRevocationReason",
     "EnterpriseGateway", "GatewayConfigBundle", "GatewayDeploymentType",
     "GatewayEnvironment", "GatewayOfflinePolicy", "GatewayStatus",
+    "DetectionRule", "SecurityAlert", "SecurityExportDestination",
+    "SecurityExportDeadLetter", "SecurityInvestigation",
 ]

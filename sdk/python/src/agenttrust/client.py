@@ -48,6 +48,7 @@ class AgentTrust:
         self.credentials = CredentialsClient(self)
         self.issuers = IssuersClient(self)
         self.gateways = GatewaysClient(self)
+        self.security = SecurityClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -534,5 +535,68 @@ class GatewaysClient:
 
     def config_history(self, environment: str = "production") -> list[dict[str, Any]]:
         return self._client._request("GET", f"/v1/gateways/config/history?environment={environment}")
+
+
+class SecurityClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def get_overview(self, window_hours: int = 24) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/security/overview?window_hours={window_hours}")
+
+    def list_events(
+        self,
+        severity: str | None = None,
+        category: str | None = None,
+        event_type: str | None = None,
+        agent_id: str | None = None,
+        correlation_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        params = [f"limit={limit}"]
+        if severity:
+            params.append(f"severity={severity}")
+        if category:
+            params.append(f"category={category}")
+        if event_type:
+            params.append(f"event_type={event_type}")
+        if agent_id:
+            params.append(f"agent_id={agent_id}")
+        if correlation_id:
+            params.append(f"correlation_id={correlation_id}")
+        query = "&".join(params)
+        return self._client._request("GET", f"/v1/security/events?{query}")
+
+    def get_event(self, event_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/security/events/{event_id}")
+
+    def get_related_events(self, event_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/security/events/{event_id}/related")
+
+    def list_alerts(self, status: str | None = None, severity: str | None = None, limit: int = 50) -> dict[str, Any]:
+        params = [f"limit={limit}"]
+        if status:
+            params.append(f"status={status}")
+        if severity:
+            params.append(f"severity={severity}")
+        query = "&".join(params)
+        return self._client._request("GET", f"/v1/security/alerts?{query}")
+
+    def get_alert(self, alert_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/security/alerts/{alert_id}")
+
+    def acknowledge_alert(self, alert_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/security/alerts/{alert_id}/acknowledge")
+
+    def resolve_alert(self, alert_id: str, note: str | None = None) -> dict[str, Any]:
+        body = {"resolution_note": note} if note else {}
+        return self._client._request("POST", f"/v1/security/alerts/{alert_id}/resolve", body=body)
+
+    def list_rules(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/security/rules")
+
+    def list_exports(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/security/exports")
+
 
 

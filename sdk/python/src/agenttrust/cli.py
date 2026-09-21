@@ -1103,6 +1103,67 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_security_events_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.list_events(
+        severity=getattr(args, "severity", None),
+        category=getattr(args, "category", None),
+        limit=getattr(args, "limit", 50),
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_events_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.get_event(args.event_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_alerts_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.list_alerts(
+        status=getattr(args, "status", None),
+        severity=getattr(args, "severity", None),
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_alerts_ack(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.acknowledge_alert(args.alert_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_alerts_resolve(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.resolve_alert(args.alert_id, note=getattr(args, "note", None))
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_rules_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.list_rules()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_exports_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.list_exports()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_security_overview(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.security.get_overview()
+    print(json.dumps(res, indent=2))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1412,6 +1473,53 @@ def main(argv: list[str] | None = None) -> int:
     p_rc = sub_rst.add_parser("check", help="Check restore target database safety", parents=[common])
     p_rc.add_argument("target_db", help="Target database URL")
     p_rc.set_defaults(func=cmd_restore_check)
+
+    # security (Step 26)
+    p_sec = subparsers.add_parser("security", help="Enterprise SOC operations, events, and alerts", parents=[common])
+    sub_sec = p_sec.add_subparsers(dest="subcommand", required=True)
+
+    # security overview
+    p_so = sub_sec.add_parser("overview", help="Get SOC security posture overview", parents=[common])
+    p_so.set_defaults(func=cmd_security_overview)
+
+    # security events
+    p_se = sub_sec.add_parser("events", help="Security event inspection", parents=[common])
+    sub_se = p_se.add_subparsers(dest="subaction", required=True)
+    p_sel = sub_se.add_parser("list", help="List security events", parents=[common])
+    p_sel.add_argument("--severity", help="Filter by severity (CRITICAL, HIGH, etc.)")
+    p_sel.add_argument("--category", help="Filter by category")
+    p_sel.add_argument("--limit", type=int, default=50, help="Maximum events to return")
+    p_sel.set_defaults(func=cmd_security_events_list)
+    p_seg = sub_se.add_parser("get", help="Get security event detail", parents=[common])
+    p_seg.add_argument("event_id", help="Event ID (evt_...)")
+    p_seg.set_defaults(func=cmd_security_events_get)
+
+    # security alerts
+    p_sa = sub_sec.add_parser("alerts", help="Security alert management", parents=[common])
+    sub_sa = p_sa.add_subparsers(dest="subaction", required=True)
+    p_sal = sub_sa.add_parser("list", help="List security alerts", parents=[common])
+    p_sal.add_argument("--status", choices=["OPEN", "ACKNOWLEDGED", "INVESTIGATING", "RESOLVED"], help="Filter by status")
+    p_sal.add_argument("--severity", choices=["CRITICAL", "HIGH", "MEDIUM", "LOW"], help="Filter by severity")
+    p_sal.set_defaults(func=cmd_security_alerts_list)
+    p_saa = sub_sa.add_parser("acknowledge", help="Acknowledge an alert", parents=[common])
+    p_saa.add_argument("alert_id", help="Alert ID (alt_...)")
+    p_saa.set_defaults(func=cmd_security_alerts_ack)
+    p_sar = sub_sa.add_parser("resolve", help="Resolve an alert with note", parents=[common])
+    p_sar.add_argument("alert_id", help="Alert ID (alt_...)")
+    p_sar.add_argument("--note", help="Resolution note")
+    p_sar.set_defaults(func=cmd_security_alerts_resolve)
+
+    # security rules
+    p_sr = sub_sec.add_parser("rules", help="Detection rules", parents=[common])
+    sub_sr = p_sr.add_subparsers(dest="subaction", required=True)
+    p_srl = sub_sr.add_parser("list", help="List detection rules", parents=[common])
+    p_srl.set_defaults(func=cmd_security_rules_list)
+
+    # security exports
+    p_sx = sub_sec.add_parser("exports", help="SIEM and webhook export destinations", parents=[common])
+    sub_sx = p_sx.add_subparsers(dest="subaction", required=True)
+    p_sxl = sub_sx.add_parser("list", help="List export destinations", parents=[common])
+    p_sxl.set_defaults(func=cmd_security_exports_list)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

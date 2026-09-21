@@ -206,6 +206,35 @@ export class AgentTrust {
     return this.rawRequest(`/v1/organization-trust/directory${qs}`);
   }
 
+  async getSecurityOverview(windowHours = 24): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/security/overview?window_hours=${windowHours}`);
+  }
+
+  async listSecurityEvents(params: { severity?: string; category?: string; limit?: number } = {}): Promise<Record<string, unknown>> {
+    const q = new URLSearchParams({ limit: String(params.limit ?? 50) });
+    if (params.severity) q.set("severity", params.severity);
+    if (params.category) q.set("category", params.category);
+    return this.rawRequest(`/v1/security/events?${q.toString()}`);
+  }
+
+  async listSecurityAlerts(params: { status?: string; severity?: string; limit?: number } = {}): Promise<Record<string, unknown>> {
+    const q = new URLSearchParams({ limit: String(params.limit ?? 50) });
+    if (params.status) q.set("status", params.status);
+    if (params.severity) q.set("severity", params.severity);
+    return this.rawRequest(`/v1/security/alerts?${q.toString()}`);
+  }
+
+  async acknowledgeSecurityAlert(alertId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/security/alerts/${encodeURIComponent(alertId)}/acknowledge`, { method: "POST" });
+  }
+
+  async resolveSecurityAlert(alertId: string, note?: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/v1/security/alerts/${encodeURIComponent(alertId)}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(note ? { resolution_note: note } : {}),
+    });
+  }
+
   private async rawRequest(path: string, init: RequestInit = {}): Promise<any> {
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), this.timeout);
     try {

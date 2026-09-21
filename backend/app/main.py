@@ -36,12 +36,21 @@ from app.api.trust_registry import router as trust_registry_router
 from app.api.enterprise_gateways import router as enterprise_gateways_router
 from app.api.reliability import router as reliability_router
 from app.api.security_hardening import router as security_hardening_router
+from app.api.soc import router as soc_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
 from app.database.session import create_database_engine
 from app.services.rate_limit import create_rate_limiter
-from app.core.observability import configure_logging, metrics, request_id_context, scrub_error_event
+from app.core.observability import (
+    configure_logging,
+    correlation_id_context,
+    metrics,
+    request_id_context,
+    scrub_error_event,
+    trace_id_context,
+)
+
 
 
 @asynccontextmanager
@@ -119,6 +128,9 @@ def create_app() -> FastAPI:
     application.include_router(reliability_router)
     application.include_router(security_hardening_router, prefix="/api")
     application.include_router(security_hardening_router)
+    application.include_router(soc_router, prefix="/api/v1/security")
+    application.include_router(soc_router, prefix="/v1/security")
+    application.include_router(soc_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)
@@ -128,6 +140,14 @@ def create_app() -> FastAPI:
         supplied = request.headers.get("X-Request-ID", "")
         request_id = supplied if supplied.startswith("req_") and 8 <= len(supplied) <= 80 and supplied.replace("_", "").isalnum() else f"req_{secrets.token_hex(12)}"
         request.state.request_id = request_id; token = request_id_context.set(request_id); started = perf_counter()
+
+        supplied_trace = request.headers.get("X-Trace-ID", "")
+        trace_id = supplied_trace if supplied_trace and len(supplied_trace) <= 128 else f"trace_{secrets.token_hex(16)}"
+        token_trace = trace_id_context.set(trace_id)
+
+        supplied_corr = request.headers.get("X-Correlation-ID", "")
+        correlation_id = supplied_corr if supplied_corr and len(supplied_corr) <= 128 else f"corr_{secrets.token_hex(12)}"
+        token_corr = correlation_id_context.set(correlation_id)
 
         settings = application.state.settings
 
@@ -186,6 +206,8 @@ def create_app() -> FastAPI:
         metrics.http(request.method, route, response.status_code, duration)
         logging.getLogger("agenttrust.access").info("request_complete", extra={"route": route, "method": request.method, "status_code": response.status_code, "duration_ms": round(duration * 1000, 2)})
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-Trace-ID"] = trace_id
+        response.headers["X-Correlation-ID"] = correlation_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -194,6 +216,8 @@ def create_app() -> FastAPI:
         if application.state.settings.app_env == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         request_id_context.reset(token)
+        trace_id_context.reset(token_trace)
+        correlation_id_context.reset(token_corr)
         return response
     return application
 

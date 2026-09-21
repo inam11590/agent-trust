@@ -10,6 +10,8 @@ from threading import Lock
 from typing import Any
 
 request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
+trace_id_context: ContextVar[str] = ContextVar("trace_id", default="-")
+correlation_id_context: ContextVar[str] = ContextVar("correlation_id", default="-")
 
 # Secret redaction patterns
 REDACT_PATTERNS = [
@@ -43,6 +45,8 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "service": "agenttrust-api",
             "request_id": getattr(record, "request_id", request_id_context.get()),
+            "trace_id": getattr(record, "trace_id", trace_id_context.get()),
+            "correlation_id": getattr(record, "correlation_id", correlation_id_context.get()),
             "message": safe_msg,
         }
         for key in ("route", "method", "status_code", "duration_ms", "event"):
@@ -73,6 +77,8 @@ class Metrics:
         self.duration = defaultdict(float)
         self.authorizations = Counter()
         self.events = Counter()
+        self.soc_metrics = Counter()
+        self.alerts_open_count = 0
 
     def http(self, method: str, route: str, status: int, seconds: float) -> None:
         key = (method, route, f"{status // 100}xx")
@@ -83,10 +89,21 @@ class Metrics:
     def authorization(self, decision: str) -> None:
         with self._lock:
             self.authorizations[decision] += 1
+            self.soc_metrics["authorization_total"] += 1
+            if decision.upper() == "DENIED":
+                self.soc_metrics["authorization_denied_total"] += 1
 
     def event(self, name: str) -> None:
         with self._lock:
             self.events[name] += 1
+
+    def record_soc(self, name: str, count: int = 1) -> None:
+        with self._lock:
+            self.soc_metrics[name] += count
+
+    def set_alerts_open(self, count: int) -> None:
+        with self._lock:
+            self.alerts_open_count = count
 
     def render(self) -> str:
         lines = [
@@ -106,6 +123,40 @@ class Metrics:
                 lines.append(f'agenttrust_authorization_decisions_total{{decision="{decision}"}} {count}')
             for name, count in sorted(self.events.items()):
                 lines.append(f'agenttrust_events_total{{event="{name}"}} {count}')
+
+            # SOC metrics
+            lines.append("# HELP agenttrust_authorization_total Total authorizations assessed.")
+            lines.append("# TYPE agenttrust_authorization_total counter")
+            lines.append(f"agenttrust_authorization_total {self.soc_metrics.get('authorization_total', 0)}")
+
+            lines.append("# HELP agenttrust_authorization_denied_total Total denied authorizations.")
+            lines.append("# TYPE agenttrust_authorization_denied_total counter")
+            lines.append(f"agenttrust_authorization_denied_total {self.soc_metrics.get('authorization_denied_total', 0)}")
+
+            lines.append("# HELP agenttrust_invalid_signature_total Cryptographic signature failures.")
+            lines.append("# TYPE agenttrust_invalid_signature_total counter")
+            lines.append(f"agenttrust_invalid_signature_total {self.soc_metrics.get('invalid_signature_total', 0)}")
+
+            lines.append("# HELP agenttrust_replay_detected_total Replay attacks detected.")
+            lines.append("# TYPE agenttrust_replay_detected_total counter")
+            lines.append(f"agenttrust_replay_detected_total {self.soc_metrics.get('replay_detected_total', 0)}")
+
+            lines.append("# HELP agenttrust_credential_failure_total Credential validation failures.")
+            lines.append("# TYPE agenttrust_credential_failure_total counter")
+            lines.append(f"agenttrust_credential_failure_total {self.soc_metrics.get('credential_failure_total', 0)}")
+
+            lines.append("# HELP agenttrust_trust_violation_total Cross-org trust violations.")
+            lines.append("# TYPE agenttrust_trust_violation_total counter")
+            lines.append(f"agenttrust_trust_violation_total {self.soc_metrics.get('trust_violation_total', 0)}")
+
+            lines.append("# HELP agenttrust_gateway_auth_failure_total Gateway authentication failures.")
+            lines.append("# TYPE agenttrust_gateway_auth_failure_total counter")
+            lines.append(f"agenttrust_gateway_auth_failure_total {self.soc_metrics.get('gateway_auth_failure_total', 0)}")
+
+            lines.append("# HELP agenttrust_alerts_open Open security alerts count.")
+            lines.append("# TYPE agenttrust_alerts_open gauge")
+            lines.append(f"agenttrust_alerts_open {self.alerts_open_count}")
+
         return "\n".join(lines) + "\n"
 
 
