@@ -374,8 +374,16 @@ def authorize_action(
         evaluation = _rejected("Agent not found")
         return save(evaluation)
     if agent.status != AgentStatus.ACTIVE:
-        evaluation = _rejected("Agent is not active", agent.id)
+        if agent.status == AgentStatus.SUSPENDED:
+            evaluation = _rejected("AGENT_SUSPENDED: Agent is suspended", agent.id)
+        elif agent.status in (AgentStatus.RETIRED, AgentStatus.REVOKED):
+            evaluation = _rejected("AGENT_RETIRED: Agent is retired", agent.id)
+        else:
+            evaluation = _rejected("Agent is not active", agent.id)
         return save(evaluation)
+
+    # Step 28: Record activity timestamp for dormancy tracking
+    agent.last_activity_at = checked_at
 
     # Delegation Check: if request has delegation_id, verify delegation chain
     if request.delegation_id is not None:

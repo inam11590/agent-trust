@@ -42,6 +42,26 @@ class AgentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Step 28: Governance Attributes
+    owner_type: str = "USER"
+    team: str | None = None
+    purpose: str | None = None
+    business_function: str | None = None
+    expected_actions: list[str] = Field(default_factory=list)
+    data_access_description: str | None = None
+    risk_classification: str = "LOW"
+    classification_reasons: list[str] = Field(default_factory=list)
+    business_criticality: str = "LOW"
+    data_classification: str = "INTERNAL"
+    source: str = "MANUAL"
+    external_reference: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    last_activity_at: datetime | None = None
+    last_reviewed_at: datetime | None = None
+    next_review_due_at: datetime | None = None
+    certified_until: datetime | None = None
+    certification_status: str = "UNREVIEWED"
+
 
 class AgentUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
@@ -49,6 +69,15 @@ class AgentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     status: AgentStatus | None = None
+    purpose: str | None = None
+    business_function: str | None = None
+    risk_classification: str | None = None
+    business_criticality: str | None = None
+    data_classification: str | None = None
+    team: str | None = None
+    tags: list[str] | None = None
+    expected_actions: list[str] | None = None
+    data_access_description: str | None = None
 
     @field_validator("name", mode="before")
     @classmethod
@@ -67,3 +96,4 @@ class AgentUpdate(BaseModel):
         if not self.model_fields_set:
             raise ValueError("At least one field must be provided")
         return self
+

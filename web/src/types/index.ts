@@ -1,4 +1,15 @@
-export type AgentStatus = "active" | "inactive" | "suspended" | "revoked";
+export type AgentStatus =
+  | "draft"
+  | "registered"
+  | "review_required"
+  | "approved"
+  | "active"
+  | "suspended"
+  | "retirement_pending"
+  | "retired"
+  | "inactive"
+  | "revoked";
+
 export type PermissionStatus = "active" | "expired" | "revoked";
 export type Decision = "APPROVED" | "REJECTED" | "PENDING";
 
@@ -53,8 +64,95 @@ export interface Agent {
   owner_id: string;
   organization_id: string | null;
   status: AgentStatus;
+  environment?: string;
   created_at: string;
   updated_at: string;
+  // Step 28: Governance Attributes
+  owner_type?: string;
+  team?: string | null;
+  purpose?: string | null;
+  business_function?: string | null;
+  expected_actions?: string[];
+  data_access_description?: string | null;
+  risk_classification?: string;
+  classification_reasons?: string[];
+  business_criticality?: string;
+  data_classification?: string;
+  source?: string;
+  external_reference?: string | null;
+  tags?: string[];
+  last_activity_at?: string | null;
+  last_reviewed_at?: string | null;
+  next_review_due_at?: string | null;
+  certified_until?: string | null;
+  certification_status?: string;
+}
+
+export interface AgentCertification {
+  id: string;
+  certification_id: string;
+  organization_id: string | null;
+  agent_id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
+  reviewer_id: string | null;
+  requested_at: string;
+  due_at: string | null;
+  completed_at: string | null;
+  decision: string | null;
+  notes: string | null;
+  snapshot_reference: Record<string, unknown>;
+}
+
+export interface AgentOwnershipHistory {
+  id: string;
+  agent_id: string;
+  organization_id: string | null;
+  old_owner_type: string;
+  old_owner_id: string;
+  new_owner_type: string;
+  new_owner_id: string;
+  changed_by: string | null;
+  reason: string;
+  changed_at: string;
+}
+
+export interface GovernancePolicy {
+  organization_id: string;
+  periodic_review_days: number;
+  expiry_behavior: string;
+  dormancy_days: number;
+  enforce_separation_of_duties: boolean;
+  require_classification_on_promotion: boolean;
+  require_purpose_on_promotion: boolean;
+}
+
+export interface DependencyGraph {
+  root_agent_id: string;
+  root_agent_name: string;
+  nodes: Array<{
+    id: string;
+    type: string;
+    label: string;
+    identifier?: string;
+    status?: string;
+    risk_classification?: string;
+    is_root?: boolean;
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    relationship: string;
+    status?: string;
+    actions?: string[];
+  }>;
+  metrics: {
+    total_nodes: number;
+    total_edges: number;
+    connected_agents_count: number;
+    active_credentials_count: number;
+    bound_policies_count: number;
+    blast_radius_score: number;
+  };
 }
 
 export interface Permission {

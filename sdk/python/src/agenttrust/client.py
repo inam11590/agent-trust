@@ -50,6 +50,8 @@ class AgentTrust:
         self.gateways = GatewaysClient(self)
         self.security = SecurityClient(self)
         self.policies = PoliciesClient(self)
+        self.governance = GovernanceClient(self)
+        self.agents = AgentsGovernanceClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -685,6 +687,117 @@ class PoliciesClient:
             "sample_requests": sample_requests,
         }
         return self._client._request("POST", f"/v1/policies/{policy_id}/impact", body=body)
+
+
+class GovernanceClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def get_dashboard(self) -> dict[str, Any]:
+        return self._client._request("GET", "/v1/governance/dashboard")
+
+    def get_signals(self, agent_id: str | None = None) -> list[dict[str, Any]]:
+        path = "/v1/governance/signals" + (f"?agent_id={agent_id}" if agent_id else "")
+        return self._client._request("GET", path)
+
+    def list_certifications(self, status: str | None = None) -> list[dict[str, Any]]:
+        path = "/v1/governance/certifications" + (f"?status={status}" if status else "")
+        return self._client._request("GET", path)
+
+    def request_certification(self, agent_id: str, due_days: int = 14, notes: str | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/governance/certifications",
+            body={"agent_id": agent_id, "due_days": due_days, "notes": notes},
+        )
+
+    def decide_certification(self, certification_id: str, decision: str, notes: str | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/governance/certifications/{certification_id}/decide",
+            body={"decision": decision, "notes": notes},
+        )
+
+    def bulk(self, action: str, agent_ids: list[str], params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/governance/bulk",
+            body={"action": action, "agent_ids": agent_ids, "params": params or {}},
+        )
+
+    def get_policy(self) -> dict[str, Any]:
+        return self._client._request("GET", "/v1/governance/policy")
+
+    def update_policy(self, **kwargs: Any) -> dict[str, Any]:
+        return self._client._request("PUT", "/v1/governance/policy", body=kwargs)
+
+
+class AgentsGovernanceClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def list(self, status: str | None = None, risk: str | None = None, search: str | None = None) -> list[dict[str, Any]]:
+        params = []
+        if status:
+            params.append(f"status={status}")
+        if risk:
+            params.append(f"risk={risk}")
+        if search:
+            params.append(f"search={search}")
+        qs = ("?" + "&".join(params)) if params else ""
+        return self._client._request("GET", f"/agents{qs}")
+
+    def get(self, agent_identifier: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/agents/{agent_identifier}")
+
+    def transition_lifecycle(self, agent_identifier: str, target_status: str, reason: str | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/agents/{agent_identifier}/lifecycle/transition",
+            body={"target_status": target_status, "reason": reason},
+        )
+
+    def transfer_ownership(
+        self,
+        agent_identifier: str,
+        new_owner_id: str,
+        new_owner_type: str = "USER",
+        reason: str = "Ownership reassignment",
+        new_team: str | None = None,
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/agents/{agent_identifier}/ownership/transfer",
+            body={"new_owner_id": new_owner_id, "new_owner_type": new_owner_type, "reason": reason, "new_team": new_team},
+        )
+
+    def get_relationships(self, agent_identifier: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/agents/{agent_identifier}/relationships")
+
+    def check_retirement(self, agent_identifier: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/agents/{agent_identifier}/retirement/check")
+
+    def retire(self, agent_identifier: str, reason: str, force: bool = False) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/agents/{agent_identifier}/retirement/execute",
+            body={"reason": reason, "force": force},
+        )
+
+    def suspend(self, agent_identifier: str, reason: str) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/agents/{agent_identifier}/suspend",
+            body={"reason": reason},
+        )
+
+    def reactivate(self, agent_identifier: str, reason: str | None = None) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/agents/{agent_identifier}/reactivate",
+            body={"reason": reason},
+        )
+
 
 
 

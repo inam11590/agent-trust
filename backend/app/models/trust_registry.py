@@ -44,6 +44,7 @@ class CredentialStatus(str, Enum):
 
 class CredentialRevocationReason(str, Enum):
     AGENT_REVOKED = "AGENT_REVOKED"
+    AGENT_RETIRED = "AGENT_RETIRED"
     KEY_COMPROMISED = "KEY_COMPROMISED"
     CLAIMS_CHANGED = "CLAIMS_CHANGED"
     ISSUER_ACTION = "ISSUER_ACTION"
@@ -163,3 +164,11 @@ class AgentCredential(Base):
     )
 
     issuer: Mapped["CredentialIssuer"] = relationship("CredentialIssuer", back_populates="credentials")
+
+    @property
+    def revocation_reason(self) -> str | None:
+        return self.revocation_reason_code
+
+    @revocation_reason.setter
+    def revocation_reason(self, val: str | None) -> None:
+        self.revocation_reason_code = val

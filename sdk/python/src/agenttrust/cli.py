@@ -1254,6 +1254,101 @@ def cmd_policies_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_agents_transition(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.transition_lifecycle(
+        agent_identifier=args.agent_id,
+        target_status=args.status,
+        reason=args.reason,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_agents_transfer_owner(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.transfer_ownership(
+        agent_identifier=args.agent_id,
+        new_owner_id=args.new_owner,
+        new_owner_type=args.owner_type,
+        reason=args.reason,
+        new_team=args.team,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_agents_relationships(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.get_relationships(agent_identifier=args.agent_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_agents_suspend(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.suspend(agent_identifier=args.agent_id, reason=args.reason)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_agents_reactivate(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.reactivate(agent_identifier=args.agent_id, reason=args.reason)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_agents_retire(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.agents.retire(agent_identifier=args.agent_id, reason=args.reason, force=args.force)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_governance_dashboard(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.governance.get_dashboard()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_governance_signals(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.governance.get_signals(agent_id=getattr(args, "agent_id", None))
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_governance_certifications(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.governance.list_certifications(status=getattr(args, "status", None))
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_governance_certify(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.governance.request_certification(
+        agent_id=args.agent_id,
+        due_days=args.due_days,
+        notes=args.notes,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_governance_decide(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.governance.decide_certification(
+        certification_id=args.certification_id,
+        decision=args.decision,
+        notes=args.notes,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -1298,6 +1393,41 @@ def main(argv: list[str] | None = None) -> int:
     p_ac.add_argument("--name", required=True, help="Agent name")
     p_ac.add_argument("--environment", choices=["sandbox", "production"], default="sandbox", help="Environment (sandbox or production)")
     p_ac.set_defaults(func=cmd_agents_create)
+
+    # Step 28: Agent Lifecycle & Governance subcommands
+    p_at = sub_agents.add_parser("transition", help="Transition agent lifecycle state", parents=[common])
+    p_at.add_argument("agent_id", help="Agent identifier")
+    p_at.add_argument("--status", required=True, help="Target status (active, suspended, retired, review_required)")
+    p_at.add_argument("--reason", help="Transition reason")
+    p_at.set_defaults(func=cmd_agents_transition)
+
+    p_ato = sub_agents.add_parser("transfer-owner", help="Transfer agent ownership", parents=[common])
+    p_ato.add_argument("agent_id", help="Agent identifier")
+    p_ato.add_argument("--new-owner", required=True, help="New owner user ID or identifier")
+    p_ato.add_argument("--owner-type", default="USER", help="USER, TEAM, or SERVICE_OWNER")
+    p_ato.add_argument("--team", help="Team name")
+    p_ato.add_argument("--reason", required=True, help="Business reason")
+    p_ato.set_defaults(func=cmd_agents_transfer_owner)
+
+    p_ar = sub_agents.add_parser("relationships", help="View agent dependency and blast-radius graph", parents=[common])
+    p_ar.add_argument("agent_id", help="Agent identifier")
+    p_ar.set_defaults(func=cmd_agents_relationships)
+
+    p_as = sub_agents.add_parser("suspend", help="Emergency suspend an agent", parents=[common])
+    p_as.add_argument("agent_id", help="Agent identifier")
+    p_as.add_argument("--reason", required=True, help="Suspension reason")
+    p_as.set_defaults(func=cmd_agents_suspend)
+
+    p_arc = sub_agents.add_parser("reactivate", help="Reactivate suspended agent", parents=[common])
+    p_arc.add_argument("agent_id", help="Agent identifier")
+    p_arc.add_argument("--reason", help="Reactivation reason")
+    p_arc.set_defaults(func=cmd_agents_reactivate)
+
+    p_art = sub_agents.add_parser("retire", help="Safely retire agent", parents=[common])
+    p_art.add_argument("agent_id", help="Agent identifier")
+    p_art.add_argument("--reason", required=True, help="Retirement reason")
+    p_art.add_argument("--force", action="store_true", help="Force retire and revoke all dependencies")
+    p_art.set_defaults(func=cmd_agents_retire)
 
     # permissions
     p_perms = subparsers.add_parser("permissions", help="List permissions", parents=[common])
@@ -1648,6 +1778,33 @@ def main(argv: list[str] | None = None) -> int:
     p_pold.add_argument("--v1", type=int, required=True, help="Baseline version number")
     p_pold.add_argument("--v2", type=int, required=True, help="Target version number")
     p_pold.set_defaults(func=cmd_policies_diff)
+
+    # governance (Step 28 Enterprise Agent Lifecycle Governance)
+    p_gov = subparsers.add_parser("governance", help="Enterprise Agent Governance, reviews, and signals", parents=[common])
+    sub_gov = p_gov.add_subparsers(dest="subcommand", required=True)
+
+    p_gd = sub_gov.add_parser("dashboard", help="View executive governance KPIs and posture overview", parents=[common])
+    p_gd.set_defaults(func=cmd_governance_dashboard)
+
+    p_gs = sub_gov.add_parser("signals", help="List governance warning signals and alerts", parents=[common])
+    p_gs.add_argument("--agent-id", help="Filter signals by agent ID")
+    p_gs.set_defaults(func=cmd_governance_signals)
+
+    p_gc = sub_gov.add_parser("certifications", help="List access certification reviews", parents=[common])
+    p_gc.add_argument("--status", choices=["PENDING", "APPROVED", "REJECTED", "EXPIRED"], help="Filter by status")
+    p_gc.set_defaults(func=cmd_governance_certifications)
+
+    p_greq = sub_gov.add_parser("certify", help="Initiate certification access review for an agent", parents=[common])
+    p_greq.add_argument("agent_id", help="Agent UUID")
+    p_greq.add_argument("--due-days", type=int, default=14, help="Review due window in days")
+    p_greq.add_argument("--notes", help="Review justification or notes")
+    p_greq.set_defaults(func=cmd_governance_certify)
+
+    p_gdec = sub_gov.add_parser("decide", help="Record certification decision (APPROVED or REJECTED)", parents=[common])
+    p_gdec.add_argument("certification_id", help="Certification ID (cert_...)")
+    p_gdec.add_argument("--decision", required=True, choices=["APPROVED", "REJECTED"], help="Reviewer decision")
+    p_gdec.add_argument("--notes", help="Decision rationale")
+    p_gdec.set_defaults(func=cmd_governance_decide)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

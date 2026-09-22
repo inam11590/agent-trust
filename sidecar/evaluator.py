@@ -128,6 +128,16 @@ def evaluate_local_request(
                 "reason": f"Presented credential '{cid}' has been revoked.",
             }
 
+    # Check for revoked or suspended agents in cached revocations list
+    revoked_agent_ids = {r.get("id") for r in revocations if r.get("type") == "agent"}
+    if agent_id in revoked_agent_ids:
+        state.record_request(LocalAuthorizationResult.REJECTED, was_offline=is_offline)
+        return {
+            "decision": LocalAuthorizationResult.REJECTED,
+            "code": "AGENT_SUSPENDED",
+            "reason": f"Agent '{agent_id}' is suspended or retired.",
+        }
+
     # 5. Local Risk Engine Scoring
     if amount > 5000:
         state.record_request(LocalAuthorizationResult.PENDING_HUMAN_APPROVAL, was_offline=is_offline)

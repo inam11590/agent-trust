@@ -515,6 +515,23 @@ def build_and_publish_config(
         ).all()
         revocations.extend([{"type": "credential", "id": cid} for cid in rev_creds])
 
+        # Step 28: Include suspended and retired agents
+        try:
+            from app.models.agent import Agent, AgentStatus
+            suspended_agents = db.scalars(
+                select(Agent.agent_identifier).where(
+                    Agent.organization_id == org_id,
+                    Agent.status.in_([
+                        AgentStatus.SUSPENDED,
+                        AgentStatus.RETIRED,
+                        AgentStatus.REVOKED,
+                    ]),
+                )
+            ).all()
+            revocations.extend([{"type": "agent", "id": aid} for aid in suspended_agents])
+        except Exception:
+            pass
+
     routing = req.routing or {"allowed_peer_gateways": ["*"], "privacy_mode": "DIRECT_PRIVATE"}
 
     bundle_dict = {

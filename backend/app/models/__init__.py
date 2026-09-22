@@ -91,6 +91,14 @@ from app.models.soc import (
     SecurityExportDestination,
     SecurityInvestigation,
 )
+from app.models.agent_governance import (
+    AgentCertification,
+    AgentGovernancePolicy,
+    AgentOwnershipHistory,
+    CertificationStatus,
+    ExpiryBehavior,
+    OwnerType,
+)
 from app.models.policy import (
     Policy,
     PolicyBinding,
@@ -146,4 +154,6 @@ __all__ = [
     "DetectionRule", "SecurityAlert", "SecurityExportDestination",
     "SecurityExportDeadLetter", "SecurityInvestigation",
     "Policy", "PolicyVersion", "PolicyBinding", "PolicyTestCase", "generate_policy_id",
+    "AgentOwnershipHistory", "AgentCertification", "AgentGovernancePolicy",
+    "OwnerType", "CertificationStatus", "ExpiryBehavior",
 ]

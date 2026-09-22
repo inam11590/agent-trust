@@ -122,11 +122,6 @@ class SecurityEvent(Base):
     __table_args__ = (
         Index("ix_security_events_org_created", "organization_id", "created_at"),
         Index("ix_security_events_actor_created", "actor_user_id", "created_at"),
-        Index("ix_security_events_event_id", "event_id"),
-        Index("ix_security_events_category", "category"),
-        Index("ix_security_events_correlation", "correlation_id"),
-        Index("ix_security_events_agent_id", "agent_id"),
-        Index("ix_security_events_gateway_id", "gateway_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -161,7 +156,7 @@ class SecurityEvent(Base):
     risk_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
     region: Mapped[str | None] = mapped_column(String(64), nullable=True)
     environment: Mapped[str | None] = mapped_column(String(32), server_default="production", nullable=True)
-    details: Mapped[dict] = mapped_column(JSON, default=dict, server_default=text("'{}'::json"), nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, default=dict, server_default=text("'{}'"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
     )

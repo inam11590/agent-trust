@@ -277,6 +277,79 @@ export class AgentTrust {
   async getGatewayIdentity(): Promise<Record<string, unknown>> {
     return this.rawRequest("/api/v1/atp/gateway-identity", { method: "GET" });
   }
+
+  // Step 28: Enterprise Agent Lifecycle Governance
+  async getGovernanceDashboard(): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/governance/dashboard", { method: "GET" });
+  }
+
+  async getGovernanceSignals(agentId?: string): Promise<Record<string, unknown>[]> {
+    const qs = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+    return this.rawRequest(`/api/v1/governance/signals${qs}`, { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async listCertifications(status?: string): Promise<Record<string, unknown>[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.rawRequest(`/api/v1/governance/certifications${qs}`, { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async requestCertification(options: { agentId: string; dueDays?: number; notes?: string }): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/governance/certifications", {
+      method: "POST",
+      body: JSON.stringify({ agent_id: options.agentId, due_days: options.dueDays ?? 14, notes: options.notes }),
+    });
+  }
+
+  async decideCertification(certificationId: string, decision: "APPROVED" | "REJECTED", notes?: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/governance/certifications/${encodeURIComponent(certificationId)}/decide`, {
+      method: "POST",
+      body: JSON.stringify({ decision, notes }),
+    });
+  }
+
+  async transitionAgentLifecycle(agentIdentifier: string, targetStatus: string, reason?: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/lifecycle/transition`, {
+      method: "POST",
+      body: JSON.stringify({ target_status: targetStatus, reason }),
+    });
+  }
+
+  async transferAgentOwnership(agentIdentifier: string, newOwnerId: string, options: { newOwnerType?: string; reason?: string; newTeam?: string } = {}): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/ownership/transfer`, {
+      method: "POST",
+      body: JSON.stringify({
+        new_owner_id: newOwnerId,
+        new_owner_type: options.newOwnerType ?? "USER",
+        reason: options.reason ?? "Ownership reassignment",
+        new_team: options.newTeam,
+      }),
+    });
+  }
+
+  async getAgentRelationships(agentIdentifier: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/relationships`, { method: "GET" });
+  }
+
+  async suspendAgent(agentIdentifier: string, reason: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/suspend`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async reactivateAgent(agentIdentifier: string, reason?: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/reactivate`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async retireAgent(agentIdentifier: string, reason: string, force = false): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/agents/${encodeURIComponent(agentIdentifier)}/retirement/execute`, {
+      method: "POST",
+      body: JSON.stringify({ reason, force }),
+    });
+  }
 }
 
 export class SignedAgent {
