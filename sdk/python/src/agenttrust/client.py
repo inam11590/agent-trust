@@ -53,6 +53,7 @@ class AgentTrust:
         self.governance = GovernanceClient(self)
         self.agents = AgentsGovernanceClient(self)
         self.discovery = DiscoveryClient(self)
+        self.services = ServiceClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -915,6 +916,181 @@ class DiscoveryClient:
 
     def export_candidates(self, format: str = "json") -> str:
         return self._client._request("GET", f"/v1/discovery/export?format={format}")
+
+
+class ServiceClient:
+    """Client for AgentTrust Service Registry, Capability Catalog, and Agent-to-Agent Communication."""
+
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def list(
+        self,
+        status: str | None = None,
+        visibility: str | None = None,
+        agent_id: str | None = None,
+        environment: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        params = []
+        if status:
+            params.append(f"status={status}")
+        if visibility:
+            params.append(f"visibility={visibility}")
+        if agent_id:
+            params.append(f"agent_id={agent_id}")
+        if environment:
+            params.append(f"environment={environment}")
+        params.append(f"limit={limit}")
+        query = "?" + "&".join(params) if params else ""
+        return self._client._request("GET", f"/v1/services{query}")
+
+    def get(self, service_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/services/{service_id}")
+
+    def create(
+        self,
+        agent_id: str,
+        name: str,
+        description: str | None = None,
+        version: str = "1.0.0",
+        status: str = "ACTIVE",
+        visibility: str = "ORGANIZATION",
+        environment: str = "production",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "agent_id": agent_id,
+            "name": name,
+            "description": description,
+            "version": version,
+            "status": status,
+            "visibility": visibility,
+            "environment": environment,
+            "metadata_json": metadata or {},
+        }
+        return self._client._request("POST", "/v1/services", body=body)
+
+    def update(self, service_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        return self._client._request("PATCH", f"/v1/services/{service_id}", body=updates)
+
+    def delete(self, service_id: str) -> dict[str, Any]:
+        return self._client._request("DELETE", f"/v1/services/{service_id}")
+
+    def register_capability(
+        self,
+        service_id: str,
+        agent_id: str,
+        name: str,
+        version: str = "1.0",
+        description: str | None = None,
+        input_schema: dict | None = None,
+        output_schema: dict | None = None,
+        risk_classification: str = "LOW",
+        requires_approval: bool = False,
+        approval_threshold_amount: float | None = None,
+        rate_limit_per_minute: int | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "agent_id": agent_id,
+            "name": name,
+            "version": version,
+            "description": description,
+            "input_schema": input_schema,
+            "output_schema": output_schema,
+            "risk_classification": risk_classification,
+            "requires_approval": requires_approval,
+            "approval_threshold_amount": approval_threshold_amount,
+            "rate_limit_per_minute": rate_limit_per_minute,
+        }
+        return self._client._request("POST", f"/v1/services/{service_id}/capabilities", body=body)
+
+    def list_capabilities(self, service_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+        if service_id:
+            return self._client._request("GET", f"/v1/services/{service_id}/capabilities?limit={limit}")
+        return self._client._request("GET", f"/v1/capabilities?limit={limit}")
+
+    def add_endpoint(
+        self,
+        service_id: str,
+        url: str,
+        protocol: str = "HTTPS",
+        priority: int = 1,
+        weight: int = 100,
+        environment: str = "production",
+    ) -> dict[str, Any]:
+        body = {
+            "protocol": protocol,
+            "url": url,
+            "priority": priority,
+            "weight": weight,
+            "environment": environment,
+        }
+        return self._client._request("POST", f"/v1/services/{service_id}/endpoints", body=body)
+
+    def list_endpoints(self, service_id: str) -> list[dict[str, Any]]:
+        return self._client._request("GET", f"/v1/services/{service_id}/endpoints")
+
+    def initiate_endpoint_verification(self, service_id: str, endpoint_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/services/{service_id}/endpoints/{endpoint_id}/challenges")
+
+    def verify_endpoint(
+        self,
+        service_id: str,
+        endpoint_id: str,
+        challenge_token: str,
+        signature: str | None = None,
+        key_id: str | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "challenge_token": challenge_token,
+            "signature": signature,
+            "key_id": key_id,
+        }
+        return self._client._request("POST", f"/v1/services/{service_id}/endpoints/{endpoint_id}/verify", body=body)
+
+    def resolve(self, caller_agent_id: str, service_id: str, capability: str | None = None) -> dict[str, Any]:
+        body = {
+            "caller_agent_id": caller_agent_id,
+            "service_id": service_id,
+            "capability": capability,
+        }
+        return self._client._request("POST", "/v1/services/resolve", body=body)
+
+    def call(
+        self,
+        caller_agent_id: str,
+        service_id: str,
+        capability: str,
+        payload: dict[str, Any],
+        call_chain: list[str] | None = None,
+        depth: int = 1,
+        idempotency_key: str | None = None,
+        caller_signature: str | None = None,
+        caller_key_id: str | None = None,
+        caller_timestamp: str | None = None,
+        caller_nonce: str | None = None,
+        credential_jwt: str | None = None,
+    ) -> dict[str, Any]:
+        body = {
+            "caller_agent_id": caller_agent_id,
+            "service_id": service_id,
+            "capability": capability,
+            "payload": payload,
+            "call_chain": call_chain or [],
+            "depth": depth,
+            "idempotency_key": idempotency_key,
+            "caller_signature": caller_signature,
+            "caller_key_id": caller_key_id,
+            "caller_timestamp": caller_timestamp,
+            "caller_nonce": caller_nonce,
+            "credential_jwt": credential_jwt,
+        }
+        return self._client._request("POST", "/v1/services/call", body=body)
+
+    def list_calls(self, limit: int = 50) -> list[dict[str, Any]]:
+        return self._client._request("GET", f"/v1/services/calls?limit={limit}")
+
 
 
 

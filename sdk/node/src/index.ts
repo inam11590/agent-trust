@@ -464,6 +464,80 @@ export class AgentTrust {
       body: JSON.stringify({ reason }),
     });
   }
+
+  // Step 30: Service Registry & Agent Communication
+  async listServices(options: { status?: string; visibility?: string; limit?: number } = {}): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams();
+    if (options.status) params.append("status", options.status);
+    if (options.visibility) params.append("visibility", options.visibility);
+    if (options.limit) params.append("limit", String(options.limit));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.rawRequest(`/api/v1/services${query}`);
+  }
+
+  async getService(serviceId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/services/${encodeURIComponent(serviceId)}`);
+  }
+
+  async createService(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/services", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async registerCapability(serviceId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/services/${encodeURIComponent(serviceId)}/capabilities`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async addServiceEndpoint(serviceId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/services/${encodeURIComponent(serviceId)}/endpoints`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async verifyServiceEndpoint(serviceId: string, endpointId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/services/${encodeURIComponent(serviceId)}/endpoints/${encodeURIComponent(endpointId)}/verify`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resolveService(callerAgentId: string, serviceId: string, capability?: string): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/services/resolve", {
+      method: "POST",
+      body: JSON.stringify({
+        caller_agent_id: callerAgentId,
+        service_id: serviceId,
+        capability,
+      }),
+    });
+  }
+
+  async callAgentService(
+    callerAgentId: string,
+    serviceId: string,
+    capability: string,
+    payload: unknown,
+    options: { callChain?: string[]; depth?: number; idempotencyKey?: string } = {}
+  ): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/services/call", {
+      method: "POST",
+      body: JSON.stringify({
+        caller_agent_id: callerAgentId,
+        service_id: serviceId,
+        capability,
+        payload,
+        call_chain: options.callChain || [],
+        depth: options.depth || 1,
+        idempotency_key: options.idempotencyKey,
+      }),
+    });
+  }
 }
 
 

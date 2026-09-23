@@ -1462,6 +1462,149 @@ def cmd_discovery_ignore(args: argparse.Namespace) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------
+# Step 30: Service Registry & Agent Communication CLI Commands
+# ----------------------------------------------------------------------
+
+def cmd_services_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.list(status=args.status, visibility=args.visibility, limit=args.limit)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_services_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.get(args.service_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_services_create(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    meta = {}
+    if args.metadata:
+        try:
+            meta = json.loads(args.metadata)
+        except Exception as exc:
+            print(f"Error parsing metadata JSON: {exc}", file=sys.stderr)
+            return 1
+    res = client.services.create(
+        agent_id=args.agent_id,
+        name=args.name,
+        description=args.description,
+        version=args.version or "1.0.0",
+        status=args.status or "ACTIVE",
+        visibility=args.visibility or "ORGANIZATION",
+        environment=args.environment or "production",
+        metadata=meta,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_services_delete(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.delete(args.service_id)
+    print(f"Service '{args.service_id}' successfully retired.")
+    return 0
+
+
+def cmd_capabilities_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.list_capabilities(service_id=args.service_id, limit=args.limit)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_capabilities_register(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    in_schema = json.loads(args.input_schema) if args.input_schema else None
+    out_schema = json.loads(args.output_schema) if args.output_schema else None
+    res = client.services.register_capability(
+        service_id=args.service_id,
+        agent_id=args.agent_id,
+        name=args.name,
+        version=args.version or "1.0",
+        description=args.description,
+        input_schema=in_schema,
+        output_schema=out_schema,
+        risk_classification=args.risk or "LOW",
+        requires_approval=args.requires_approval,
+        approval_threshold_amount=args.threshold,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_endpoints_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.list_endpoints(args.service_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_endpoints_add(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.add_endpoint(
+        service_id=args.service_id,
+        url=args.url,
+        protocol=args.protocol or "HTTPS",
+        priority=args.priority or 1,
+        weight=args.weight or 100,
+        environment=args.environment or "production",
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_endpoints_verify(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.verify_endpoint(
+        service_id=args.service_id,
+        endpoint_id=args.endpoint_id,
+        challenge_token=args.challenge_token,
+        signature=args.signature,
+        key_id=args.key_id,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_services_resolve(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.services.resolve(
+        caller_agent_id=args.caller_agent_id,
+        service_id=args.service_id,
+        capability=args.capability,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_services_call(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    payload = {}
+    if args.payload:
+        try:
+            payload = json.loads(args.payload)
+        except Exception as exc:
+            print(f"Error parsing payload JSON: {exc}", file=sys.stderr)
+            return 1
+    call_chain = args.call_chain.split(",") if args.call_chain else []
+    res = client.services.call(
+        caller_agent_id=args.caller_agent_id,
+        service_id=args.service_id,
+        capability=args.capability,
+        payload=payload,
+        call_chain=call_chain,
+        depth=args.depth or 1,
+        idempotency_key=args.idempotency_key,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -1984,6 +2127,91 @@ def main(argv: list[str] | None = None) -> int:
     p_di.add_argument("--reason", required=True, help="Ignore reason")
     p_di.add_argument("--days", type=int, default=30, help="Suppression duration in days")
     p_di.set_defaults(func=cmd_discovery_ignore)
+
+    # services (Step 30 Service Registry & Communication)
+    p_svc = subparsers.add_parser("services", help="Service Registry lifecycle and management", parents=[common])
+    sub_svc = p_svc.add_subparsers(dest="service_cmd", required=True)
+    p_svl = sub_svc.add_parser("list", help="List registered services", parents=[common])
+    p_svl.add_argument("--status", help="Filter by status (ACTIVE, DRAFT, etc.)")
+    p_svl.add_argument("--visibility", help="Filter by visibility (ORGANIZATION, PUBLIC, etc.)")
+    p_svl.add_argument("--limit", type=int, default=50, help="Page limit")
+    p_svl.set_defaults(func=cmd_services_list)
+    p_svg = sub_svc.add_parser("get", help="Get service details", parents=[common])
+    p_svg.add_argument("service_id", help="Service ID (svc_...)")
+    p_svg.set_defaults(func=cmd_services_get)
+    p_svc_c = sub_svc.add_parser("create", help="Create a new service", parents=[common])
+    p_svc_c.add_argument("--agent-id", required=True, help="Owning agent ID")
+    p_svc_c.add_argument("--name", required=True, help="Service name")
+    p_svc_c.add_argument("--description", help="Service description")
+    p_svc_c.add_argument("--version", default="1.0.0", help="Service version")
+    p_svc_c.add_argument("--status", default="ACTIVE", help="Initial status")
+    p_svc_c.add_argument("--visibility", default="ORGANIZATION", help="Visibility")
+    p_svc_c.add_argument("--environment", default="production", help="Environment")
+    p_svc_c.add_argument("--metadata", help="Metadata JSON string")
+    p_svc_c.set_defaults(func=cmd_services_create)
+    p_svd = sub_svc.add_parser("delete", help="Retire a service", parents=[common])
+    p_svd.add_argument("service_id", help="Service ID (svc_...)")
+    p_svd.set_defaults(func=cmd_services_delete)
+
+    # capabilities
+    p_caps = subparsers.add_parser("capabilities", help="Capability catalog management", parents=[common])
+    sub_caps = p_caps.add_subparsers(dest="capability_cmd", required=True)
+    p_cpl = sub_caps.add_parser("list", help="List published capabilities", parents=[common])
+    p_cpl.add_argument("--service-id", help="Filter by service ID")
+    p_cpl.add_argument("--limit", type=int, default=50, help="Limit")
+    p_cpl.set_defaults(func=cmd_capabilities_list)
+    p_cpr = sub_caps.add_parser("register", help="Register capability on a service", parents=[common])
+    p_cpr.add_argument("--service-id", required=True, help="Service ID")
+    p_cpr.add_argument("--agent-id", required=True, help="Agent ID")
+    p_cpr.add_argument("--name", required=True, help="Capability name (e.g. text.summarize)")
+    p_cpr.add_argument("--version", default="1.0", help="Capability version")
+    p_cpr.add_argument("--description", help="Description")
+    p_cpr.add_argument("--input-schema", help="Input JSON schema string")
+    p_cpr.add_argument("--output-schema", help="Output JSON schema string")
+    p_cpr.add_argument("--risk", default="LOW", help="Risk tier")
+    p_cpr.add_argument("--requires-approval", action="store_true", help="Hold for approval")
+    p_cpr.add_argument("--threshold", type=float, help="Approval monetary threshold")
+    p_cpr.set_defaults(func=cmd_capabilities_register)
+
+    # endpoints
+    p_eps = subparsers.add_parser("endpoints", help="Service endpoint routing and verification", parents=[common])
+    sub_eps = p_eps.add_subparsers(dest="endpoint_cmd", required=True)
+    p_epl = sub_eps.add_parser("list", help="List endpoints for a service", parents=[common])
+    p_epl.add_argument("service_id", help="Service ID")
+    p_epl.set_defaults(func=cmd_endpoints_list)
+    p_epa = sub_eps.add_parser("add", help="Add an endpoint to a service", parents=[common])
+    p_epa.add_argument("service_id", help="Service ID")
+    p_epa.add_argument("--url", required=True, help="Endpoint URL")
+    p_epa.add_argument("--protocol", default="HTTPS", help="Protocol (HTTPS, SIDECAR, etc.)")
+    p_epa.add_argument("--priority", type=int, default=1, help="Priority (1 is highest)")
+    p_epa.add_argument("--weight", type=int, default=100, help="Traffic weight")
+    p_epa.add_argument("--environment", default="production", help="Environment")
+    p_epa.set_defaults(func=cmd_endpoints_add)
+    p_epv = sub_eps.add_parser("verify", help="Verify endpoint ownership challenge", parents=[common])
+    p_epv.add_argument("service_id", help="Service ID")
+    p_epv.add_argument("endpoint_id", help="Endpoint ID (ep_...)")
+    p_epv.add_argument("--challenge-token", required=True, help="Challenge token")
+    p_epv.add_argument("--signature", help="Ed25519 signature proof")
+    p_epv.add_argument("--key-id", help="Signing Key ID")
+    p_epv.set_defaults(func=cmd_endpoints_verify)
+
+    # resolve
+    p_res = subparsers.add_parser("resolve", help="Resolve service endpoints for a caller agent", parents=[common])
+    p_res.add_argument("--caller-agent-id", required=True, help="Caller Agent ID")
+    p_res.add_argument("--service-id", required=True, help="Target Service ID or Name")
+    p_res.add_argument("--capability", help="Target capability name")
+    p_res.set_defaults(func=cmd_services_resolve)
+
+    # call
+    p_call = subparsers.add_parser("call", help="Execute loop-protected agent-to-agent capability call", parents=[common])
+    p_call.add_argument("--caller-agent-id", required=True, help="Caller Agent ID")
+    p_call.add_argument("--service-id", required=True, help="Target Service ID or Name")
+    p_call.add_argument("--capability", required=True, help="Target capability name")
+    p_call.add_argument("--payload", help="JSON payload payload string")
+    p_call.add_argument("--call-chain", help="Comma-separated caller chain agents")
+    p_call.add_argument("--depth", type=int, default=1, help="Current depth in chain")
+    p_call.add_argument("--idempotency-key", help="Unique idempotency key")
+    p_call.set_defaults(func=cmd_services_call)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

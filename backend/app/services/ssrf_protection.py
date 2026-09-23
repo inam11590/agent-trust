@@ -162,6 +162,8 @@ def resolve_and_validate_endpoint_url(
     try:
         addr_info = socket.getaddrinfo(hostname_lower, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror as exc:
+        if allow_private_ips:
+            return url.strip(), ["127.0.0.1"]
         raise SSRFValidationError(f"Failed to resolve hostname '{hostname}': {exc}", code="DNS_RESOLUTION_FAILED") from exc
 
     resolved_ips: List[str] = []

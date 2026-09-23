@@ -21,7 +21,7 @@ import secrets
 from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.agent import Agent, AgentStatus
@@ -38,6 +38,8 @@ from app.models.audit_log import AuditLog
 from app.models.organization import OrganizationMember, SecurityEvent
 from app.models.permission import Permission, PermissionStatus
 from app.models.policy import Policy, PolicyBinding
+from app.models.agent_service import AgentCallRecord, AgentService
+from app.models.agenttrust_protocol import AgentCapability
 from app.models.trust_registry import AgentCredential, CredentialStatus
 from app.models.user import User
 from app.services.agent_lifecycle import get_governance_policy, transition_lifecycle
@@ -610,6 +612,87 @@ def calculate_blast_radius_graph(db: Session, agent_id: UUID) -> Dict[str, Any]:
                 "target": f"agent:{str(agent.id)}",
                 "relationship": "GOVERNS_AGENT",
             })
+
+    # 5. Hosted Services (Step 30)
+    try:
+        services = db.scalars(
+            select(AgentService).where(AgentService.agent_id == agent.id)
+        ).all()
+        for s in services:
+            svc_node_id = f"service:{s.service_id}"
+            if svc_node_id not in seen_node_ids:
+                nodes.append({
+                    "id": svc_node_id,
+                    "type": "service",
+                    "label": s.name,
+                    "identifier": s.service_id,
+                    "status": s.status,
+                })
+                seen_node_ids.add(svc_node_id)
+            edges.append({
+                "source": f"agent:{str(agent.id)}",
+                "target": svc_node_id,
+                "relationship": "HOSTS_SERVICE",
+            })
+    except Exception:
+        pass
+
+    # 6. Capabilities (Step 30)
+    try:
+        caps = db.scalars(
+            select(AgentCapability).where(AgentCapability.agent_id == agent.id)
+        ).all()
+        for cap in caps:
+            cap_node_id = f"capability:{cap.capability_id or cap.name}"
+            if cap_node_id not in seen_node_ids:
+                nodes.append({
+                    "id": cap_node_id,
+                    "type": "capability",
+                    "label": cap.name,
+                    "identifier": cap.capability_id or cap.name,
+                    "risk_classification": cap.risk_classification,
+                })
+                seen_node_ids.add(cap_node_id)
+            edges.append({
+                "source": f"agent:{str(agent.id)}",
+                "target": cap_node_id,
+                "relationship": "USES_CAPABILITY",
+            })
+    except Exception:
+        pass
+
+    # 7. Agent Invocations / Calls (Step 30)
+    try:
+        outgoing_calls = db.scalars(
+            select(AgentCallRecord)
+            .where(AgentCallRecord.source_agent_id == agent.id)
+            .order_by(desc(AgentCallRecord.created_at))
+            .limit(20)
+        ).all()
+        for call in outgoing_calls:
+            if call.target_agent_id:
+                target_ag = db.scalar(select(Agent).where(Agent.id == call.target_agent_id))
+                if target_ag:
+                    t_node_id = f"agent:{str(target_ag.id)}"
+                    if t_node_id not in seen_node_ids:
+                        nodes.append({
+                            "id": t_node_id,
+                            "type": "target_agent",
+                            "label": target_ag.name,
+                            "identifier": target_ag.agent_identifier,
+                            "status": target_ag.status.value,
+                            "risk_classification": target_ag.risk_classification,
+                        })
+                        seen_node_ids.add(t_node_id)
+                    edges.append({
+                        "source": f"agent:{str(agent.id)}",
+                        "target": t_node_id,
+                        "relationship": "CALLS",
+                        "capability": call.capability_name,
+                        "status": call.status,
+                    })
+    except Exception:
+        pass
 
     # Compute blast radius metrics
     connected_agents_count = sum(1 for n in nodes if n["type"] in ("caller_agent", "target_agent"))

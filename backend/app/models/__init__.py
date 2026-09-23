@@ -124,6 +124,16 @@ from app.models.discovery import (
     generate_discovery_source_id,
     generate_evidence_id,
 )
+from app.models.agent_service import (
+    AgentCallRecord,
+    AgentService,
+    AgentServiceEndpoint,
+    EndpointHealthStatus,
+    EndpointProtocol,
+    ServiceStatus,
+    ServiceVerificationChallenge,
+    ServiceVisibility,
+)
 
 __all__ = [
     "Agent",
@@ -180,5 +190,8 @@ __all__ = [
     "ConfidenceLevel", "DiscoveryEvidence", "EvidenceCategory", "EvidenceStrength",
     "generate_discovery_source_id", "generate_discovery_run_id",
     "generate_candidate_id", "generate_evidence_id",
+    "AgentService", "ServiceStatus", "ServiceVisibility",
+    "AgentServiceEndpoint", "EndpointProtocol", "EndpointHealthStatus",
+    "ServiceVerificationChallenge", "AgentCallRecord",
 ]
 

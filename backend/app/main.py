@@ -40,6 +40,7 @@ from app.api.soc import router as soc_router
 from app.api.policies import router as policies_router
 from app.api.agent_governance import router as agent_governance_router
 from app.api.discovery import router as discovery_router
+from app.api.agent_services import router as agent_services_router
 from app.api.errors import database_error_handler, validation_error_handler, plan_limit_error_handler
 from app.services.plan_limits import PlanLimitReached
 from app.core.config import Settings
@@ -97,7 +98,8 @@ def create_app() -> FastAPI:
                        "X-Agent-ID", "X-Agent-Key-ID", "X-Agent-Timestamp", "X-Agent-Nonce",
                        "X-Agent-Signature", "X-Agent-Signature-Version",
                        "X-ATP-Protocol", "X-ATP-Gateway-Attestation", "X-ATP-Message-ID",
-                       "X-ATP-Source", "X-ATP-Target", "X-ATP-Capability"],
+                       "X-ATP-Source", "X-ATP-Target", "X-ATP-Capability",
+                       "X-AgentTrust-Call-Chain", "X-AgentTrust-Depth", "X-AgentTrust-Response-Sig"],
     )
     application.include_router(health_router)
     application.include_router(auth_router)
@@ -143,6 +145,9 @@ def create_app() -> FastAPI:
     application.include_router(discovery_router, prefix="/api/v1")
     application.include_router(discovery_router, prefix="/v1")
     application.include_router(discovery_router)
+    application.include_router(agent_services_router, prefix="/api/v1")
+    application.include_router(agent_services_router, prefix="/v1")
+    application.include_router(agent_services_router)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(SQLAlchemyError, database_error_handler)
     application.add_exception_handler(PlanLimitReached, plan_limit_error_handler)

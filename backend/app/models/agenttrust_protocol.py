@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -25,6 +26,7 @@ from app.database.base import Base
 
 if TYPE_CHECKING:
     from app.models.agent import Agent
+    from app.models.agent_service import AgentService
     from app.models.organization import Organization
 
 
@@ -74,24 +76,35 @@ class AgentEndpoint(Base):
 
 
 class AgentCapability(Base):
-    """Versioned public capabilities published by an agent."""
+    """Versioned public capabilities published by an agent or service."""
     __tablename__ = "agent_capabilities"
     __table_args__ = (
         Index("ix_agent_cap_name_ver", "agent_id", "name", "version", unique=True),
+        Index("ix_agent_cap_service", "service_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    capability_id: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, default=lambda: f"cap_{uuid4().hex[:16]}", nullable=False
+    )
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True, nullable=False
     )
     agent_id: Mapped[UUID] = mapped_column(
         ForeignKey("agents.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    service_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agent_services.id", ondelete="CASCADE"), index=True, nullable=True
+    )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     version: Mapped[str] = mapped_column(String(32), default="1.0", nullable=False)
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
     input_schema: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     output_schema: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    risk_classification: Mapped[str] = mapped_column(String(32), default="LOW", nullable=False)
+    requires_approval: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    approval_threshold_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rate_limit_per_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -104,6 +117,7 @@ class AgentCapability(Base):
     )
 
     agent: Mapped[Agent] = relationship("Agent", foreign_keys=[agent_id])
+    service: Mapped[AgentService | None] = relationship("AgentService", back_populates="capabilities")
 
 
 class ATPMessageRecord(Base):
