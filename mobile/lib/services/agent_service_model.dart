@@ -1,4 +1,4 @@
-/// AgentTrust Mobile (Flutter): Service Registry and Capability Model (Step 30)
+// AgentTrust Mobile (Flutter): Service Registry and Capability Model (Step 30)
 
 class AgentServiceModel {
   final String id;
