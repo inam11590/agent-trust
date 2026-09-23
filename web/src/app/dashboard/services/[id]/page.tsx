@@ -114,7 +114,7 @@ export default function ServiceDetailPage() {
         description={`Service ID: ${service.service_id} • Environment: ${service.environment}`}
         action={
           <div className="flex items-center gap-2">
-            <StatusBadge status={service.status.toLowerCase()} />
+            <StatusBadge value={service.status.toLowerCase()} />
             <button
               onClick={fetchDetails}
               className="inline-flex items-center gap-1 px-3 py-2 border rounded-md text-sm hover:bg-muted"
@@ -247,7 +247,7 @@ export default function ServiceDetailPage() {
                     </td>
                     <td className="p-3 text-xs font-mono">{ep.environment}</td>
                     <td className="p-3">
-                      <StatusBadge status={ep.health_status.toLowerCase()} />
+                      <StatusBadge value={ep.health_status.toLowerCase()} />
                     </td>
                     <td className="p-3">
                       {ep.verified_at ? (

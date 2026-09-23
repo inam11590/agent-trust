@@ -162,7 +162,7 @@ export default function ServicesPage() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <StatusBadge status={s.status.toLowerCase()} />
+                    <StatusBadge value={s.status.toLowerCase()} />
                   </td>
                   <td className="p-4">
                     <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border font-mono">
