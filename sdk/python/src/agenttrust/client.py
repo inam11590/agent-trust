@@ -52,6 +52,7 @@ class AgentTrust:
         self.policies = PoliciesClient(self)
         self.governance = GovernanceClient(self)
         self.agents = AgentsGovernanceClient(self)
+        self.discovery = DiscoveryClient(self)
 
     @classmethod
     def from_env(cls, base_url: str | None = None, timeout: float = 10.0) -> "AgentTrust":
@@ -797,6 +798,123 @@ class AgentsGovernanceClient:
             f"/agents/{agent_identifier}/reactivate",
             body={"reason": reason},
         )
+
+
+class DiscoveryClient:
+    def __init__(self, client: AgentTrust):
+        self._client = client
+
+    def get_dashboard(self) -> dict[str, Any]:
+        return self._client._request("GET", "/v1/discovery/dashboard")
+
+    def get_signals(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/discovery/signals")
+
+    def list_sources(self) -> list[dict[str, Any]]:
+        return self._client._request("GET", "/v1/discovery/sources")
+
+    def create_source(
+        self,
+        name: str,
+        source_type: str,
+        configuration: dict[str, Any] | None = None,
+        credential_reference: str | None = None,
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            "/v1/discovery/sources",
+            body={
+                "name": name,
+                "source_type": source_type,
+                "configuration": configuration or {},
+                "credential_reference": credential_reference,
+            },
+        )
+
+    def get_source(self, source_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/discovery/sources/{source_id}")
+
+    def scan_source(self, source_id: str) -> dict[str, Any]:
+        return self._client._request("POST", f"/v1/discovery/sources/{source_id}/scan")
+
+    def list_runs(self, source_id: str | None = None, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        url = f"/v1/discovery/runs?limit={limit}&offset={offset}"
+        if source_id:
+            url += f"&source_id={source_id}"
+        return self._client._request("GET", url)
+
+    def list_candidates(
+        self,
+        status: str | None = None,
+        environment: str | None = None,
+        confidence_level: str | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        params = [f"limit={limit}", f"offset={offset}"]
+        if status:
+            params.append(f"status={status}")
+        if environment:
+            params.append(f"environment={environment}")
+        if confidence_level:
+            params.append(f"confidence_level={confidence_level}")
+        if search:
+            params.append(f"search={search}")
+        return self._client._request("GET", f"/v1/discovery/candidates?{'&'.join(params)}")
+
+    def get_candidate(self, candidate_id: str) -> dict[str, Any]:
+        return self._client._request("GET", f"/v1/discovery/candidates/{candidate_id}")
+
+    def get_candidate_evidence(self, candidate_id: str) -> list[dict[str, Any]]:
+        return self._client._request("GET", f"/v1/discovery/candidates/{candidate_id}/evidence")
+
+    def match_candidate(self, candidate_id: str, agent_id: str) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/discovery/candidates/{candidate_id}/match",
+            body={"agent_id": agent_id},
+        )
+
+    def onboard_candidate(
+        self,
+        candidate_id: str,
+        owner_id: str,
+        owner_type: str = "USER",
+        purpose: str | None = None,
+        risk_classification: str = "LOW",
+        team: str | None = None,
+        business_function: str | None = None,
+    ) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/discovery/candidates/{candidate_id}/onboard",
+            body={
+                "owner_id": owner_id,
+                "owner_type": owner_type,
+                "purpose": purpose,
+                "risk_classification": risk_classification,
+                "team": team,
+                "business_function": business_function,
+            },
+        )
+
+    def ignore_candidate(self, candidate_id: str, reason: str, days: int = 30) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/discovery/candidates/{candidate_id}/ignore",
+            body={"reason": reason, "days": days},
+        )
+
+    def mark_false_positive(self, candidate_id: str, reason: str) -> dict[str, Any]:
+        return self._client._request(
+            "POST",
+            f"/v1/discovery/candidates/{candidate_id}/false-positive",
+            body={"reason": reason},
+        )
+
+    def export_candidates(self, format: str = "json") -> str:
+        return self._client._request("GET", f"/v1/discovery/export?format={format}")
 
 
 

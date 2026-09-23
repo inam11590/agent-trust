@@ -106,6 +106,24 @@ from app.models.policy import (
     PolicyVersion,
     generate_policy_id,
 )
+from app.models.discovery import (
+    ConfidenceLevel,
+    DiscoveryCandidate,
+    DiscoveryCandidateStatus,
+    DiscoveryCandidateType,
+    DiscoveryEvidence,
+    DiscoveryRun,
+    DiscoveryRunStatus,
+    DiscoverySource,
+    DiscoverySourceStatus,
+    DiscoverySourceType,
+    EvidenceCategory,
+    EvidenceStrength,
+    generate_candidate_id,
+    generate_discovery_run_id,
+    generate_discovery_source_id,
+    generate_evidence_id,
+)
 
 __all__ = [
     "Agent",
@@ -156,4 +174,11 @@ __all__ = [
     "Policy", "PolicyVersion", "PolicyBinding", "PolicyTestCase", "generate_policy_id",
     "AgentOwnershipHistory", "AgentCertification", "AgentGovernancePolicy",
     "OwnerType", "CertificationStatus", "ExpiryBehavior",
+    "DiscoverySource", "DiscoverySourceType", "DiscoverySourceStatus",
+    "DiscoveryRun", "DiscoveryRunStatus",
+    "DiscoveryCandidate", "DiscoveryCandidateStatus", "DiscoveryCandidateType",
+    "ConfidenceLevel", "DiscoveryEvidence", "EvidenceCategory", "EvidenceStrength",
+    "generate_discovery_source_id", "generate_discovery_run_id",
+    "generate_candidate_id", "generate_evidence_id",
 ]
+

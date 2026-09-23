@@ -350,7 +350,122 @@ export class AgentTrust {
       body: JSON.stringify({ reason, force }),
     });
   }
+
+  // Step 29: Agent Discovery & Shadow AI
+  async getDiscoveryDashboard(): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/discovery/dashboard", { method: "GET" });
+  }
+
+  async getDiscoverySignals(): Promise<Record<string, unknown>[]> {
+    return this.rawRequest("/api/v1/discovery/signals", { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async listDiscoverySources(): Promise<Record<string, unknown>[]> {
+    return this.rawRequest("/api/v1/discovery/sources", { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async createDiscoverySource(options: {
+    name: string;
+    sourceType: string;
+    configuration?: Record<string, unknown>;
+    credentialReference?: string;
+  }): Promise<Record<string, unknown>> {
+    return this.rawRequest("/api/v1/discovery/sources", {
+      method: "POST",
+      body: JSON.stringify({
+        name: options.name,
+        source_type: options.sourceType,
+        configuration: options.configuration ?? {},
+        credential_reference: options.credentialReference,
+      }),
+    });
+  }
+
+  async scanDiscoverySource(sourceId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/sources/${encodeURIComponent(sourceId)}/scan`, {
+      method: "POST",
+    });
+  }
+
+  async listDiscoveryRuns(options: { sourceId?: string; limit?: number; offset?: number } = {}): Promise<Record<string, unknown>[]> {
+    const params = new URLSearchParams();
+    if (options.sourceId) params.append("source_id", options.sourceId);
+    if (options.limit) params.append("limit", String(options.limit));
+    if (options.offset) params.append("offset", String(options.offset));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return this.rawRequest(`/api/v1/discovery/runs${qs}`, { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async listDiscoveryCandidates(options: {
+    status?: string;
+    environment?: string;
+    confidenceLevel?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Record<string, unknown>[]> {
+    const params = new URLSearchParams();
+    if (options.status) params.append("status", options.status);
+    if (options.environment) params.append("environment", options.environment);
+    if (options.confidenceLevel) params.append("confidence_level", options.confidenceLevel);
+    if (options.search) params.append("search", options.search);
+    if (options.limit) params.append("limit", String(options.limit));
+    if (options.offset) params.append("offset", String(options.offset));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return this.rawRequest(`/api/v1/discovery/candidates${qs}`, { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async getDiscoveryCandidate(candidateId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" });
+  }
+
+  async getDiscoveryCandidateEvidence(candidateId: string): Promise<Record<string, unknown>[]> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}/evidence`, { method: "GET" }) as unknown as Promise<Record<string, unknown>[]>;
+  }
+
+  async matchDiscoveryCandidate(candidateId: string, agentId: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}/match`, {
+      method: "POST",
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+  }
+
+  async onboardDiscoveryCandidate(candidateId: string, options: {
+    ownerId: string;
+    ownerType?: string;
+    purpose?: string;
+    riskClassification?: string;
+    team?: string;
+    businessFunction?: string;
+  }): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}/onboard`, {
+      method: "POST",
+      body: JSON.stringify({
+        owner_id: options.ownerId,
+        owner_type: options.ownerType ?? "USER",
+        purpose: options.purpose,
+        risk_classification: options.riskClassification ?? "LOW",
+        team: options.team,
+        business_function: options.businessFunction,
+      }),
+    });
+  }
+
+  async ignoreDiscoveryCandidate(candidateId: string, reason: string, days = 30): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}/ignore`, {
+      method: "POST",
+      body: JSON.stringify({ reason, days }),
+    });
+  }
+
+  async markDiscoveryCandidateFalsePositive(candidateId: string, reason: string): Promise<Record<string, unknown>> {
+    return this.rawRequest(`/api/v1/discovery/candidates/${encodeURIComponent(candidateId)}/false-positive`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
 }
+
 
 export class SignedAgent {
   constructor(private readonly client: AgentTrust, private readonly signer: AgentSigner) {}

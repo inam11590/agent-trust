@@ -1349,6 +1349,119 @@ def cmd_governance_decide(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_discovery_dashboard(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.get_dashboard()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_signals(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.get_signals()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_sources_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.list_sources()
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_sources_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.get_source(args.source_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_sources_create(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    config = {}
+    if args.config:
+        try:
+            config = json.loads(args.config)
+        except Exception as exc:
+            print(f"Error parsing config JSON: {exc}", file=sys.stderr)
+            return 1
+    res = client.discovery.create_source(
+        name=args.name,
+        source_type=args.type,
+        configuration=config,
+        credential_reference=args.credential_ref,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_scan(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.scan_source(args.source_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_runs_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.list_runs(source_id=args.source_id, limit=args.limit)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_candidates_list(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.list_candidates(
+        status=args.status,
+        environment=args.environment,
+        confidence_level=args.confidence,
+        search=args.search,
+        limit=args.limit,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_candidates_get(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.get_candidate(args.candidate_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_match(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.match_candidate(candidate_id=args.candidate_id, agent_id=args.agent_id)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_onboard(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.onboard_candidate(
+        candidate_id=args.candidate_id,
+        owner_id=args.owner_id,
+        owner_type=args.owner_type,
+        purpose=args.purpose,
+        risk_classification=args.risk_classification,
+        team=args.team,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_discovery_ignore(args: argparse.Namespace) -> int:
+    client = get_client(args)
+    res = client.discovery.ignore_candidate(
+        candidate_id=args.candidate_id,
+        reason=args.reason,
+        days=args.days,
+    )
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--api-key", help="AgentTrust API key (at_test_... or at_live_...)")
@@ -1805,6 +1918,72 @@ def main(argv: list[str] | None = None) -> int:
     p_gdec.add_argument("--decision", required=True, choices=["APPROVED", "REJECTED"], help="Reviewer decision")
     p_gdec.add_argument("--notes", help="Decision rationale")
     p_gdec.set_defaults(func=cmd_governance_decide)
+
+    # discovery (Step 29 Agent Discovery & Shadow AI)
+    p_disc = subparsers.add_parser("discovery", help="Agent Discovery, Shadow AI, and review queue", parents=[common])
+    sub_disc = p_disc.add_subparsers(dest="subcommand", required=True)
+
+    p_dd = sub_disc.add_parser("dashboard", help="View discovery metrics and candidate review summary", parents=[common])
+    p_dd.set_defaults(func=cmd_discovery_dashboard)
+
+    p_dsig = sub_disc.add_parser("signals", help="List discovery warning signals (unmanaged, shadow AI)", parents=[common])
+    p_dsig.set_defaults(func=cmd_discovery_signals)
+
+    p_dscan = sub_disc.add_parser("scan", help="Trigger a discovery scan run", parents=[common])
+    p_dscan.add_argument("source_id", help="Discovery Source ID or UUID")
+    p_dscan.set_defaults(func=cmd_discovery_scan)
+
+    p_druns = sub_disc.add_parser("runs", help="List discovery scan runs", parents=[common])
+    p_druns.add_argument("--source-id", help="Filter by source ID")
+    p_druns.add_argument("--limit", type=int, default=50, help="Page limit")
+    p_druns.set_defaults(func=cmd_discovery_runs_list)
+
+    p_dsrc = sub_disc.add_parser("sources", help="Manage discovery source connectors", parents=[common])
+    sub_dsrc = p_dsrc.add_subparsers(dest="source_cmd", required=True)
+    p_ds_l = sub_dsrc.add_parser("list", help="List discovery sources", parents=[common])
+    p_ds_l.set_defaults(func=cmd_discovery_sources_list)
+    p_ds_g = sub_dsrc.add_parser("get", help="Get discovery source details", parents=[common])
+    p_ds_g.add_argument("source_id", help="Discovery Source ID")
+    p_ds_g.set_defaults(func=cmd_discovery_sources_get)
+    p_ds_c = sub_dsrc.add_parser("create", help="Create discovery source connector", parents=[common])
+    p_ds_c.add_argument("--name", required=True, help="Connector display name")
+    p_ds_c.add_argument("--type", required=True, choices=["KUBERNETES", "CONTAINER_PLATFORM", "CLOUD", "CI_CD", "SOURCE_REPOSITORY", "GATEWAY_TELEMETRY", "SIDECAR_TELEMETRY", "IMPORT"], help="Source type")
+    p_ds_c.add_argument("--config", help="JSON configuration string")
+    p_ds_c.add_argument("--credential-ref", help="Pointer reference in SecretProvider")
+    p_ds_c.set_defaults(func=cmd_discovery_sources_create)
+
+    p_dc = sub_disc.add_parser("candidates", help="Manage and inspect discovered agent candidates", parents=[common])
+    sub_dc = p_dc.add_subparsers(dest="candidate_cmd", required=True)
+    p_dc_l = sub_dc.add_parser("list", help="List discovery candidates", parents=[common])
+    p_dc_l.add_argument("--status", choices=["NEW", "NEEDS_REVIEW", "MATCHED", "UNMANAGED", "ONBOARDING", "REGISTERED", "IGNORED", "FALSE_POSITIVE", "STALE"], help="Filter by status")
+    p_dc_l.add_argument("--environment", choices=["production", "staging", "development", "unknown"], help="Filter by environment")
+    p_dc_l.add_argument("--confidence", choices=["LOW", "MEDIUM", "HIGH"], help="Filter by confidence level")
+    p_dc_l.add_argument("--search", help="Search keyword")
+    p_dc_l.add_argument("--limit", type=int, default=50, help="Page limit")
+    p_dc_l.set_defaults(func=cmd_discovery_candidates_list)
+    p_dc_g = sub_dc.add_parser("get", help="Get discovery candidate details and evidence", parents=[common])
+    p_dc_g.add_argument("candidate_id", help="Candidate ID")
+    p_dc_g.set_defaults(func=cmd_discovery_candidates_get)
+
+    p_dm = sub_disc.add_parser("match", help="Match candidate to registered Agent", parents=[common])
+    p_dm.add_argument("candidate_id", help="Candidate ID")
+    p_dm.add_argument("--agent-id", required=True, help="Registered Agent ID or UUID")
+    p_dm.set_defaults(func=cmd_discovery_match)
+
+    p_do = sub_disc.add_parser("onboard", help="Safe onboarding of candidate into Step 28 inventory", parents=[common])
+    p_do.add_argument("candidate_id", help="Candidate ID")
+    p_do.add_argument("--owner-id", required=True, help="Owner User UUID")
+    p_do.add_argument("--owner-type", default="USER", choices=["USER", "TEAM", "SERVICE_OWNER"], help="Owner type")
+    p_do.add_argument("--purpose", help="Business purpose description")
+    p_do.add_argument("--risk-classification", default="LOW", choices=["LOW", "MEDIUM", "HIGH", "CRITICAL"], help="Risk tier")
+    p_do.add_argument("--team", help="Responsible team")
+    p_do.set_defaults(func=cmd_discovery_onboard)
+
+    p_di = sub_disc.add_parser("ignore", help="Suppress candidate from review queue", parents=[common])
+    p_di.add_argument("candidate_id", help="Candidate ID")
+    p_di.add_argument("--reason", required=True, help="Ignore reason")
+    p_di.add_argument("--days", type=int, default=30, help="Suppression duration in days")
+    p_di.set_defaults(func=cmd_discovery_ignore)
 
     # doctor
     p_doc = subparsers.add_parser("doctor", help="Run connectivity, clock, and cryptographic diagnostics", parents=[common])

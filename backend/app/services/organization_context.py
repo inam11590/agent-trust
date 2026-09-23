@@ -19,6 +19,9 @@ Capability = Literal[
     "manage_risk_policy",
     "view_billing", "manage_billing",
     "manage_security_policy", "manage_sso",
+    "discovery.read", "discovery.sources.read", "discovery.sources.manage",
+    "discovery.scan", "discovery.review", "discovery.match",
+    "discovery.onboard", "discovery.ignore", "discovery.export",
 ]
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -29,6 +32,9 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
         "manage_risk_policy",
         "view_billing", "manage_billing",
         "manage_security_policy", "manage_sso",
+        "discovery.read", "discovery.sources.read", "discovery.sources.manage",
+        "discovery.scan", "discovery.review", "discovery.match",
+        "discovery.onboard", "discovery.ignore", "discovery.export",
     }),
     OrganizationRole.ADMIN: frozenset({
         "read", "manage_agents", "manage_permissions", "read_audit", "decide_requests",
@@ -36,12 +42,21 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
         "change_roles", "remove_members",
         "manage_risk_policy",
         "view_billing", "manage_billing",
+        "discovery.read", "discovery.sources.read", "discovery.sources.manage",
+        "discovery.scan", "discovery.review", "discovery.match",
+        "discovery.onboard", "discovery.ignore", "discovery.export",
     }),
     OrganizationRole.DEVELOPER: frozenset({
         "read", "read_audit", "manage_keys", "use_developer_tools", "view_billing",
+        "discovery.read", "discovery.sources.read", "discovery.review",
+        "discovery.match", "discovery.onboard",
     }),
-    OrganizationRole.VIEWER: frozenset({"read", "read_audit", "view_billing"}),
+    OrganizationRole.VIEWER: frozenset({
+        "read", "read_audit", "view_billing",
+        "discovery.read", "discovery.sources.read",
+    }),
 }
+
 
 
 @dataclass(frozen=True)
